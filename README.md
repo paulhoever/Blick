@@ -1,127 +1,132 @@
 # Blick
 
-Blick ist ein Bildbetrachter für GNOME, geschrieben in Rust mit GTK 4 und libadwaita. Ein Ordner erscheint als Kontaktbogen: alle Bilder dicht nebeneinander, in der Reihenfolge des Ordners durchnummeriert. Ausgewählte Bilder lassen sich gemeinsam drehen oder zu Immich hochladen, ein einzelnes in Helligkeit, Kontrast und Sättigung korrigieren.
+English · [Deutsch](README.de.md)
 
-![Kontaktbogen mit Bibliothek](docs/screenshots/kontaktbogen.png)
+Blick is an image viewer for GNOME, written in Rust with GTK 4 and libadwaita. A folder shows up as a contact sheet: every picture side by side, numbered in folder order. You can rotate a selection in one go, upload it to Immich, or tweak a single picture's brightness, contrast and saturation.
 
-## Was Blick kann
+The interface is in German for now (see [Limits](#limits)), so the screenshots show German labels.
 
-Der Kontaktbogen zeigt standardmäßig den ganzen Ordnerbaum, der Ordner-Knopf in der Kopfleiste schaltet auf die oberste Ebene um. Thumbnails liegen in `~/.cache/blick/thumbs` und entstehen in eigenen Threads, die zuletzt angefragte Kachel zuerst. Neue und gelöschte Dateien erscheinen ohne Neuladen, bis 1000 Ordner tief.
+![Contact sheet with library](docs/screenshots/kontaktbogen.png)
 
-Die Bibliothek besteht aus dem Bilder-Ordner (beim ersten Start schon drin) und allem, was du über „Ordner öffnen“ dazuholst, auch per `blick -r ~/Fotos`. Jeder Unterordner mit Bildern wird ein Album. Versteckte Ordner, Synologys `@eaDir` und Papierkörbe lässt Blick aus.
+## What it does
 
-![Einzelansicht mit Stil und Korrekturen](docs/screenshots/bearbeiten.png)
+The contact sheet shows the whole folder tree by default. The folder button in the header bar switches to the top level only. Thumbnails are cached in `~/.cache/blick/thumbs` and made on their own threads, most recently requested tile first. New and deleted files appear without reloading, up to 1000 folders deep.
 
-### Formate
+The library is your Pictures folder (there from the first start) plus whatever you add with "Open folder", or on the command line with `blick -r ~/Photos`. Every subfolder that contains pictures becomes an album. Blick skips hidden folders, Synology's `@eaDir` and trash folders.
 
-JPEG, PNG, WebP, GIF, BMP und TIFF lädt Blick selbst. Kamera-RAW (CR2, CR3, NEF, ARW, RAF, RW2, ORF, DNG und rund 20 weitere) läuft über rawler: zum Ansehen die eingebettete Vorschau, für Export und Zoom die volle Entwicklung. Deren Tonwerte gleicht Blick pro Kanal an die Kamera-Vorschau an, sonst wirkt das Bild flacher als auf dem Kameradisplay. HEIC, AVIF, JPEG XL, SVG, EXR und mehr kommen über glycin aus der GNOME-Laufzeit, das jede Datei in einem abgeschotteten Prozess dekodiert.
+![Single view with a look and adjustments](docs/screenshots/bearbeiten.png)
 
-Videos (MP4, MOV, MKV, WebM, AVI, 3GP, MTS und weitere) stehen mit Standbild und Abspiel-Plakette im Bogen und laufen in der Einzelansicht. Jedes startet stumm und in Schleife. Untertitel und Spulen gibt es bewusst nicht. Abgespielt wird über GStreamer aus der Laufzeit (H.264, HEVC, AV1, VP9, mit VA-API, wo vorhanden), Drehungs-Tags von Handyvideos beachtet Blick. Aus Immich kommt dessen Fassung für den Browser.
+### Formats
 
-### Einzelansicht
+Blick decodes JPEG, PNG, WebP, GIF, BMP and TIFF itself. Camera RAW (CR2, CR3, NEF, ARW, RAF, RW2, ORF, DNG and about 20 more) goes through rawler: the embedded preview for viewing, a full develop for export and zoom. Blick matches the develop's tones to the camera preview channel by channel, because otherwise the picture looks flatter than it did on the camera's screen. HEIC, AVIF, JPEG XL, SVG, EXR and more come from glycin in the GNOME runtime, which decodes each file in a sandboxed process.
 
-Blätter- und Zoomknöpfe liegen über dem Bild. Gezoomt wird mit Strg+Mausrad, Pinch, Doppelklick oder `+` `-` `0` `1`, Vollbild ist F11, Bildinfos aus EXIF öffnet Alt+Enter. Die Nachbarbilder lädt Blick im Hintergrund vor.
+Videos (MP4, MOV, MKV, WebM, AVI, 3GP, MTS and others) get a still frame and a play badge on the sheet and play in the single view. Each one starts muted and loops. There are no subtitles and no seeking, on purpose. Playback runs on the runtime's GStreamer (H.264, HEVC, AV1, VP9, with VA-API where available), and Blick honors the rotation tags that phones write. From Immich it plays the browser-friendly version the server already made.
 
-Drehen geht einzeln oder für die Auswahl, mit Rückgängig. JPEG dreht verlustfrei über das EXIF-Tag. RAW, HEIC, AVIF und JPEG XL bekommen eine XMP-Datei daneben (`<datei>.xmp`), das Original bleibt bitgleich. Andere Formate kodiert Blick neu, mit EXIF und ICC. Animierte GIFs lässt es, wie sie sind.
+### Single view
 
-### Zuschneiden
+Previous/next and zoom buttons sit on top of the picture. Zoom with Ctrl+scroll, pinch, double-click or `+` `-` `0` `1`. F11 is fullscreen, Alt+Enter shows EXIF info. Blick preloads the neighbouring pictures in the background.
 
-Frei oder mit Vorlage: Original, 1:1, 4:3, 3:2, 16:9, 5:4, 7:5 oder 2:1, jeweils quer oder hoch. Den Rahmen ziehst du an Ecken und Kanten oder verschiebst ihn von innen, die Größe in Pixeln steht in der Seitenleiste. Wie die Korrekturen landet der Zuschnitt in einer Kopie, im Original oder gemerkt in `<bild>.xmp`. Dreht man das Bild danach, dreht der gemerkte Zuschnitt mit.
+You can rotate one picture or the whole selection, with undo. JPEG rotates losslessly through the EXIF tag. RAW, HEIC, AVIF and JPEG XL get an XMP file next to them (`<file>.xmp`) and the original stays bit-identical. Other formats are re-encoded with EXIF and ICC kept. Animated GIFs are left alone.
 
-![Zuschneiden mit Vorlage 3:2 im Hochformat](docs/screenshots/zuschneiden.png)
+### Cropping
 
-### Korrekturen und Stile
+Crop freely or with a preset: original, 1:1, 4:3, 3:2, 16:9, 5:4, 7:5 or 2:1, landscape or portrait. Drag the frame by its corners and edges or move it from inside. The size in pixels appears in the sidebar. Like the adjustments, a crop goes into a copy, into the original, or gets remembered in `<picture>.xmp`. If you rotate the picture afterwards, the remembered crop rotates with it.
 
-Helligkeit, Kontrast und Sättigung lassen sich mit Live-Vorschau einstellen. Dazu kommen Bildstile aus `.cube`-LUTs, HaldCLUT-PNGs und Lightroom-Presets (`.xmp`) mit Stärkeregler. Enthält ein Preset etwas, das Blick nicht abbilden kann, sagt der Import es dir. Die Filmsimulationen von RawTherapee (Kodak, Fuji, Ilford und andere, CC BY-SA 4.0) lädt Blick auf Wunsch selbst herunter.
+![Cropping with a 3:2 preset in portrait](docs/screenshots/zuschneiden.png)
 
-Das Ergebnis speicherst du als Kopie, merkst es als `<bild>.xmp` daneben oder exportierst den Stil als `.cube`. Ein Stil lässt sich auch auf viele Bilder auf einmal anwenden. Gemerkte Korrekturen und Stile zeigt der Kontaktbogen ebenfalls.
+### Adjustments and looks
 
-### Aufräumen und Dubletten
+Brightness, contrast and saturation have a live preview. On top of that you can apply looks from `.cube` LUTs, HaldCLUT PNGs and Lightroom presets (`.xmp`), with a strength slider. If a preset contains something Blick can't reproduce, the import tells you. Blick can also download RawTherapee's film simulations (Kodak, Fuji, Ilford and others, CC BY-SA 4.0) when you ask it to.
 
-Entf verschiebt ins Papierkorb, mit Rückgängig. Endgültig löscht Blick nur in der Dublettensuche und nur, wenn du es ausdrücklich wählst (für Freigaben ohne Papierkorb).
+Save the result as a copy, remember it in a `<picture>.xmp` next to the file, or export the look as a `.cube`. One look can be applied to many pictures at once, and the contact sheet shows remembered adjustments and looks too.
 
-Die Dublettensuche (Hauptmenü, Strg+Umschalt+D) ist an dupeGuru angelehnt und steckt in der Bibliothek `blick-dupes`. Sie kennt vier Modi: ähnliche Bilder, identischer Inhalt, Dateinamen und Ordner. Suchen kann sie in lokalen Ordnern, auf Netzwerkfreigaben über GIO/gvfs (`smb://`, `sftp://`, `davs://`, `nfs://`) und in der Immich-Bibliothek. Orte lassen sich als Referenz markieren, die Blick nie löscht.
+### Cleaning up and duplicates
 
-Beim Inhaltsvergleich zählt erst die Größe, dann ein blake3-Hash über Anfang, Mitte und Ende (auf Servern liest Blick nur diese Bereiche), dann der volle Hash. Bei Bildern vergleicht es 15×15-Farbblöcke wie dupeGuru und sucht über einen Gradientenhash in vier 16-Bit-Streifen, statt jedes Bild mit jedem zu vergleichen. Gedrehte Treffer und andere Seitenverhältnisse sind optional. Immich liefert SHA-1 gleich mit, lokale Dateien gleicher Größe prüft Blick dagegen ohne Download. Hashes und Signaturen liegen in `~/.cache/blick/dupes.db`. Zum Aufräumen markierst du Treffer, vergleichst sie nebeneinander und schickst sie in den Papierkorb (bei Immich in dessen Papierkorb), verschiebst sie, ersetzt sie durch Hardlinks oder exportierst eine CSV.
+Delete moves a picture to the trash, with undo. Blick deletes permanently only inside the duplicate finder, and only when you explicitly choose it (for network shares without a trash).
 
-Hell oder Dunkel schaltest du im Hauptmenü um, unabhängig vom System.
+The duplicate finder (main menu, Ctrl+Shift+D) is modelled on dupeGuru and lives in the `blick-dupes` crate. It has four modes: similar pictures, identical content, file names and folders. It can search local folders, network shares through GIO/gvfs (`smb://`, `sftp://`, `davs://`, `nfs://`) and the Immich library. Locations can be marked as reference, and Blick never deletes from those.
+
+For content matching, Blick compares size first, then a blake3 hash over the start, middle and end of each file (on servers it reads only those ranges), then the full hash. For pictures it compares 15×15 colour blocks like dupeGuru and looks them up through a gradient hash split into four 16-bit stripes, instead of comparing every picture with every other. Rotated matches and different aspect ratios are optional. Immich returns SHA-1 sums with its search, and Blick checks local files of the same size against them without downloading anything. Hashes and signatures live in `~/.cache/blick/dupes.db`. To clean up, mark matches, compare them side by side, then send them to the trash (Immich's trash for Immich assets), move them, replace them with hardlinks or export a CSV.
+
+You can switch between light and dark in the main menu, independent of the system setting.
 
 ### Immich
 
-Blick spricht mit Immich ab 2.x, geprüft gegen die API von 3.3.1. Beim Hochladen schickt es eine Prüfsumme mit, damit der Server Dubletten erkennt, auf Wunsch direkt in ein Album. Alben und Zeitleiste blätterst du monatsweise durch, Originale lädst du herunter. In der Einzelansicht kommt nach der Vorschau die volle Auflösung: bei JPEG und Ähnlichem über `size=fullsize`, bei HEIC und RAW lädt Blick das Original und dekodiert es selbst, solange der Server keine Fullsize-Bilder erzeugt.
+Blick works with Immich 2.x and newer, tested against the 3.3.1 API. Uploads carry a checksum so the server can spot duplicates, and can go straight into an album. You page through albums and the timeline month by month, and you can download originals. In the single view, the full resolution arrives after the preview: for JPEG and similar through `size=fullsize`. For HEIC and RAW, as long as the server doesn't generate full-size images, Blick fetches the original and decodes it itself.
 
-## Tastenkürzel
+## Keyboard shortcuts
 
-| Kürzel | Wirkung |
+| Shortcut | Action |
 |---|---|
-| Strg+O | Ordner öffnen |
-| Strg+R / Strg+Umschalt+R | Auswahl oder aktuelles Bild nach rechts / links drehen |
-| Strg+U | Auswahl zu Immich hochladen |
-| Enter, Doppelklick, Leertaste | Bild groß öffnen (Leertaste in der Einzelansicht: zurück zum Bogen) |
-| Pfeil links / rechts | Blättern in der Einzelansicht |
-| E | Bearbeiten ein/aus |
-| Linke Maustaste aufs Bild halten (beim Bearbeiten) | Original zeigen, solange gedrückt |
-| S | Stil wählen |
-| C | Zuschneiden: Pfeile verschieben den Rahmen, mit Umschalt ändern sie die Größe, Enter übernimmt, Esc bricht ab |
-| `+` `-` `0` `1` | Zoom: größer, kleiner, einpassen, 100 % |
-| Leertaste, K (Video) | Abspielen/Anhalten |
-| M (Video) | Ton an/aus |
-| Pfeil hoch / runter (Video) | Lauter / leiser |
-| F11 | Vollbild |
-| Alt+Enter | Bildinfos |
-| Entf | In den Papierkorb |
-| Strg+, | Einstellungen |
-| Strg+? | Alle Tastenkürzel |
+| Ctrl+O | Open folder |
+| Ctrl+R / Ctrl+Shift+R | Rotate selection or current picture right / left |
+| Ctrl+U | Upload selection to Immich |
+| Enter, double-click, Space | Open picture (Space in single view: back to the sheet) |
+| Left / Right arrow | Browse in single view |
+| E | Toggle editing |
+| Hold left mouse button on the picture (while editing) | Show the original while held |
+| S | Choose a look |
+| C | Crop: arrows move the frame, with Shift they resize it, Enter applies, Esc cancels |
+| `+` `-` `0` `1` | Zoom: in, out, fit, 100 % |
+| Space, K (video) | Play/pause |
+| M (video) | Mute/unmute |
+| Up / Down arrow (video) | Louder / quieter |
+| F11 | Fullscreen |
+| Alt+Enter | Picture info |
+| Delete | Move to trash |
+| Ctrl+, | Preferences |
+| Ctrl+? | All shortcuts |
 
 ## Installation
 
-Blick läuft als Flatpak (GNOME 51). Das Paket `blick.flatpak` hängt an jedem Release auf der [Releases-Seite](https://github.com/paulhoever/Blick/releases), die Prüfsumme liegt daneben.
+Blick runs as a Flatpak (GNOME 51). Each release on the [releases page](https://github.com/paulhoever/Blick/releases) carries a `blick.flatpak` bundle with its checksum next to it.
 
 ```sh
+sha256sum -c blick.flatpak.sha256
 flatpak install --user blick.flatpak
 flatpak run io.github.paulhoever.Blick
 ```
 
-## Immich einrichten
+## Setting up Immich
 
-In Immich legst du unter Kontoeinstellungen einen API-Schlüssel an. Er braucht `user.read`, `album.read`, `asset.read`, `asset.view`, `asset.download`, `asset.upload` und `albumAsset.create`. In Blick trägst du unter Einstellungen Adresse und Schlüssel ein und drückst „Prüfen und speichern“. Der Schlüssel liegt danach im Schlüsselbund (oo7, im Flatpak über das Secret-Portal), die Adresse in GSettings.
+In Immich, create an API key under account settings. It needs `user.read`, `album.read`, `asset.read`, `asset.view`, `asset.download`, `asset.upload` and `albumAsset.create`. In Blick, enter the address and key under Preferences and press "Check and save". The key is then stored in the keyring (oo7, through the Secret portal inside the Flatpak) and the address in GSettings.
 
-Zum Testen nimmst du besser kein echtes Konto. `tools/immich_mock.py` spielt einen Immich-Server mit den Bildern eines beliebigen Ordners:
+Don't test against a real account. `tools/immich_mock.py` fakes an Immich server using the pictures from any folder:
 
 ```sh
-python3 tools/immich_mock.py ~/Testbilder 2291
+python3 tools/immich_mock.py ~/test-pictures 2291
 BLICK_IMMICH_URL=http://127.0.0.1:2291 BLICK_IMMICH_KEY=demo-key cargo run
 ```
 
-Die beiden Umgebungsvariablen haben Vorrang vor den gespeicherten Einstellungen.
+The two environment variables take precedence over the saved settings.
 
-## Aufbau
+## Layout
 
 ```
 crates/
-  blick-core/    Bildverarbeitung ohne GTK: Dekodieren, Korrekturen, Drehen, Caches, Batch
-  blick-immich/  Immich-Client (reqwest, rustls mit ring), ohne GTK
-  blick-dupes/   Dublettensuche: Quellen (lokal, GIO, Immich), Pipeline, Cache, Ergebnisse
-  blick/         die App: Fenster, Kontaktbogen, Einzelansicht, Dialoge
-data/            Desktop-Datei, Metainfo, GSettings-Schema, CSS, Icons
-build-aux/       Flatpak-Manifest und die Liste der Crates für den Offline-Build
-tools/           Immich-Attrappe für Tests
+  blick-core/    image handling without GTK: decoding, adjustments, rotation, caches, batch
+  blick-immich/  Immich client (reqwest, rustls with ring), no GTK
+  blick-dupes/   duplicate finder: sources (local, GIO, Immich), pipeline, cache, results
+  blick/         the app: window, contact sheet, single view, dialogs
+data/            desktop file, metainfo, GSettings schema, CSS, icons
+build-aux/       Flatpak manifest and the crate list for the offline build
+tools/           Immich stand-in for tests
 ```
 
-Im UI-Thread passiert keine Datei- oder Netzwerkarbeit. Dekodieren, Drehen und Speichern laufen über `gio::spawn_blocking` oder die Thumbnail-Threads, das Netzwerk auf einer eigenen tokio-Runtime. Die Ergebnisse kommen per Future zurück in den GTK-Hauptloop. Jede Ansicht zählt eine Generation mit: Ein spätes Ergebnis für ein Bild, von dem du schon weitergeblättert hast, wird verworfen.
+Nothing in the UI thread touches files or the network. Decoding, rotating and saving run through `gio::spawn_blocking` or the thumbnail threads, and networking runs on its own tokio runtime. Results come back to the GTK main loop as futures. Each view keeps a generation counter, so a late result for a picture you've already paged away from gets dropped.
 
-## Bauen
+## Building
 
-Für die Entwicklung reichen Rust ab 1.85 und die Entwicklerpakete von GTK ab 4.14 und libadwaita ab 1.5:
+For development you need Rust 1.85 or newer plus the GTK 4.14+ and libadwaita 1.5+ development packages:
 
 ```sh
 sudo apt install libgtk-4-dev libadwaita-1-dev
-cargo run -- ~/Bilder
+cargo run -- ~/Pictures
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-Das Flatpak baut ohne Netz, mit Rust aus der SDK-Extension:
+The Flatpak builds offline, with Rust from the SDK extension:
 
 ```sh
 flatpak install --user flathub org.gnome.Sdk//51 org.freedesktop.Sdk.Extension.rust-stable//26.08
@@ -129,7 +134,7 @@ flatpak-builder --user --force-clean --install build-dir build-aux/io.github.pau
 flatpak run io.github.paulhoever.Blick
 ```
 
-Nach jeder Änderung an `Cargo.lock` muss `build-aux/cargo-sources.json` neu entstehen:
+After every change to `Cargo.lock`, regenerate `build-aux/cargo-sources.json`:
 
 ```sh
 python3 -m venv .venv-tools && .venv-tools/bin/pip install aiohttp tomlkit
@@ -137,21 +142,21 @@ curl -LO --output-dir .venv-tools https://raw.githubusercontent.com/flatpak/flat
 .venv-tools/bin/python .venv-tools/flatpak-cargo-generator.py Cargo.lock -o build-aux/cargo-sources.json
 ```
 
-Ein Installationspaket für andere Rechner:
+To make an installable bundle for other machines:
 
 ```sh
 flatpak-builder --user --force-clean --repo=repo build-dir build-aux/io.github.paulhoever.Blick.yml
 flatpak build-bundle repo blick.flatpak io.github.paulhoever.Blick --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo
 ```
 
-## Grenzen
+## Limits
 
-- HEIC, AVIF und JXL dreht Blick nur im Sidecar. Korrekturen lassen sich dort nicht überschreiben, nur als Kopie speichern: Der HEIF-Encoder der GNOME-Laufzeit schreibt kein EXIF, das Aufnahmedatum ginge verloren.
-- Der RAW-Tonabgleich nähert die Kamera-Vorschau an, eine Kamera-Tonkurve ist es nicht. Ohne eingebettete Vorschau bleibt die Entwicklung flach.
-- Lightroom rechnet Lichter, Tiefen, Weiß und Schwarz lokal, Blick global. Presets sehen ähnlich aus, aber nicht gleich.
-- Thumbnails nach der Freedesktop-Spezifikation (geteilt mit Nautilus) fehlen. Im Flatpak bräuchte das Zugriff auf `~/.cache/thumbnails`.
-- Es gibt noch keine Übersetzungen (gettext), die Oberfläche ist deutsch.
+- HEIC, AVIF and JXL rotate only through the sidecar. Adjustments can't overwrite those files, only be saved as a copy: the HEIF encoder in the GNOME runtime writes no EXIF, so the capture date would be lost.
+- The RAW tone match approximates the camera preview. It isn't the camera's tone curve, and without an embedded preview the develop stays flat.
+- Lightroom computes highlights, shadows, whites and blacks locally, Blick globally. Presets look similar, not identical.
+- Thumbnails following the freedesktop specification (shared with Nautilus) are missing. Inside the Flatpak that would need access to `~/.cache/thumbnails`.
+- There are no translations (gettext) yet, so the interface is German only.
 
-## Lizenz
+## License
 
 GPL-3.0-or-later
