@@ -9,7 +9,7 @@ use crate::source::Storage;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Keep {
-    /// Meiste Pixel, bei Gleichstand größere Datei.
+    /// Most pixels, larger file on a tie.
     Resolution,
     BiggestFile,
     Newest,
@@ -17,7 +17,7 @@ pub enum Keep {
     ShortestPath,
 }
 
-/// Index des Mitglieds, das bleiben soll: eine Referenz, sonst nach Kriterium.
+/// Index of the member that stays: a reference, otherwise by criterion.
 pub fn best(group: &Group, keep: Keep) -> usize {
     if let Some(i) = group.members.iter().position(|m| m.reference) {
         return i;
@@ -36,7 +36,7 @@ pub fn best(group: &Group, keep: Keep) -> usize {
     (0..group.members.len()).max_by_key(|&i| key(&group.members[i])).unwrap_or(0)
 }
 
-/// Markierungen je Gruppe und Mitglied. Referenzen sind nie markiert.
+/// Marks per group and member. References are never marked.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Marks(pub Vec<Vec<bool>>);
 
@@ -57,8 +57,8 @@ impl Marks {
         )
     }
 
-    /// Markiert alles, dessen Adresse `needle` enthält (Ordner oder Namensmuster);
-    /// in jeder Gruppe bleibt mindestens ein Mitglied unmarkiert.
+    /// Marks everything whose address contains `needle` (folder or name pattern);
+    /// at least one member in each group stays unmarked.
     pub fn by_substring(groups: &[Group], needle: &str) -> Self {
         let mut m = Self::none(groups);
         for (g, grp) in groups.iter().enumerate() {
@@ -93,7 +93,7 @@ impl Marks {
             .sum()
     }
 
-    /// Gruppen, in denen alles markiert ist: das würde jede Kopie löschen.
+    /// Groups where everything is marked: that would delete every copy.
     pub fn fully_marked_groups(&self) -> Vec<usize> {
         self.0
             .iter()
@@ -107,10 +107,10 @@ impl Marks {
 #[derive(Debug, Clone)]
 pub enum Action {
     Trash,
-    /// Endgültig löschen (nur wo es keinen Papierkorb gibt).
+    /// Delete permanently (only where there is no trash).
     Delete,
     MoveTo(PathBuf),
-    /// Durch Hardlink auf das beste Mitglied ersetzen (nur lokal, gleiches Dateisystem).
+    /// Replace with a hardlink to the best member (local only, same file system).
     Hardlink(Keep),
     Symlink(Keep),
 }
@@ -130,7 +130,7 @@ pub fn apply(
 ) -> Result<Outcome> {
     if let Some(&g) = marks.fully_marked_groups().first() {
         return Err(DupeError::Other(format!(
-            "Gruppe {} ist komplett markiert, nichts bliebe übrig",
+            "Group {} is fully marked, nothing would be left",
             g + 1
         )));
     }
@@ -164,13 +164,13 @@ pub fn apply(
 
 fn local(st: &dyn Storage, m: &Member) -> Result<PathBuf> {
     st.local_path(&m.entry)
-        .ok_or_else(|| DupeError::Other(format!("nur lokal möglich: {}", m.entry.uri)))
+        .ok_or_else(|| DupeError::Other(format!("local only: {}", m.entry.uri)))
 }
 
 fn move_to(st: &dyn Storage, m: &Member, dest: &std::path::Path) -> Result<()> {
     let src = local(st, m)?;
     std::fs::create_dir_all(dest).map_err(|e| DupeError::io(dest.display(), e))?;
-    let name = src.file_name().ok_or_else(|| DupeError::Other("kein Dateiname".into()))?;
+    let name = src.file_name().ok_or_else(|| DupeError::Other("no file name".into()))?;
     let mut target = dest.join(name);
     let mut n = 1;
     while target.exists() {
@@ -180,7 +180,7 @@ fn move_to(st: &dyn Storage, m: &Member, dest: &std::path::Path) -> Result<()> {
         n += 1;
     }
     if std::fs::rename(&src, &target).is_err() {
-        // anderes Dateisystem: kopieren, dann erst löschen
+        // other file system: copy first, delete afterwards
         std::fs::copy(&src, &target).map_err(|e| DupeError::io(src.display(), e))?;
         std::fs::remove_file(&src).map_err(|e| DupeError::io(src.display(), e))?;
     }
@@ -196,8 +196,8 @@ fn replace_with_link(
 ) -> Result<()> {
     let victim = local(st, m)?;
     let keeper = local(best_st, best)?;
-    // Erst den Link unter Nebennamen anlegen, dann atomar drüberlegen:
-    // scheitert das Anlegen, bleibt die Kopie unangetastet.
+    // Create the link under a temporary name first, then lay it over atomically:
+    // if creating it fails, the copy stays untouched.
     let tmp = victim.with_extension("blick-link-tmp");
     let _ = std::fs::remove_file(&tmp);
     let made = if symbolic {
@@ -216,7 +216,7 @@ pub fn export_csv(groups: &[Group], marks: &Marks) -> String {
     fn q(s: &str) -> String {
         format!("\"{}\"", s.replace('"', "\"\""))
     }
-    let mut out = String::from("Gruppe,Ähnlichkeit,Markiert,Referenz,Pfad,Größe,Breite,Höhe,Geändert\n");
+    let mut out = String::from("Group,Similarity,Marked,Reference,Path,Size,Width,Height,Modified\n");
     for (g, grp) in groups.iter().enumerate() {
         for (i, m) in grp.members.iter().enumerate() {
             let (w, h) = m.entry.dims.unwrap_or((0, 0));

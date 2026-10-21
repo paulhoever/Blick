@@ -1,23 +1,23 @@
-//! HaldCLUT-PNGs, wie die Film Simulation Collection von RawTherapee.
+//! HaldCLUT PNGs, like RawTherapee's Film Simulation Collection.
 //!
-//! Eine HaldCLUT der Stufe L ist ein quadratisches Bild mit L³ × L³ Pixeln.
-//! Pixel Nummer i (zeilenweise) ist der Ausgabewert für den Gitterpunkt i
-//! eines Würfels mit L² Punkten je Achse, Rot läuft am schnellsten.
+//! A HaldCLUT of level L is a square image of L³ × L³ pixels.
+//! Pixel number i (row by row) is the output value for grid point i
+//! of a cube with L² points per axis, red running fastest.
 
 use super::lut::Lut3d;
 
-/// Gittergröße, auf die große HaldCLUTs heruntergerechnet werden. 144³ (Stufe 12)
-/// kostet 36 MB und ist von 64³ nicht zu unterscheiden.
+/// Grid size large HaldCLUTs get reduced to. 144³ (level 12)
+/// costs 36 MB and can't be told apart from 64³.
 const MAX_SIZE: usize = 64;
 
 pub fn from_image(img: &image::DynamicImage) -> Result<Lut3d, String> {
     let (w, h) = (img.width() as usize, img.height() as usize);
     if w != h {
-        return Err(format!("HaldCLUT muss quadratisch sein, ist {w}x{h}"));
+        return Err(format!("HaldCLUT must be square, is {w}x{h}"));
     }
     let level = (2..=16)
         .find(|l| l * l * l == w)
-        .ok_or_else(|| format!("{w}x{w} ist keine HaldCLUT-Größe (512, 729, 1000, 1728 …)"))?;
+        .ok_or_else(|| format!("{w}x{w} is not a HaldCLUT size (512, 729, 1000, 1728 …)"))?;
     let size = level * level;
     let rgb = img.to_rgb32f();
     let data = rgb.pixels().map(|p| [p[0], p[1], p[2]]).collect();
@@ -33,7 +33,7 @@ pub fn from_image(img: &image::DynamicImage) -> Result<Lut3d, String> {
 mod tests {
     use super::*;
 
-    /// Erzeugt die Identitäts-HaldCLUT einer Stufe als Bild.
+    /// Builds the identity HaldCLUT of a level as an image.
     pub fn identity_image(level: u32) -> image::DynamicImage {
         let size = level * level;
         let side = level * level * level;

@@ -1,9 +1,9 @@
-//! Videos: schlichter Player für die Einzelansicht und Standbilder für den Bogen.
+//! Videos: a plain player for the single view and still frames for the sheet.
 //!
-//! Abgespielt wird über GStreamer (`playbin` + `gtk4paintablesink` aus der
-//! GNOME-Laufzeit, mit Hardware-Dekodierung, wo VA-API sie hergibt). Blick transkodiert nichts
-//! selbst: Lokale Dateien laufen direkt, bei Immich kommt die Fassung, die der
-//! Server schon für den Browser erzeugt hat. Jedes Video startet stumm.
+//! Playback goes through GStreamer (`playbin` + `gtk4paintablesink` from the
+//! GNOME runtime, with hardware decoding where VA-API allows). Blick doesn't
+//! transcode anything: local files play directly, for Immich we get the version
+//! the server already made for the browser. Every video starts muted.
 
 use std::cell::{Cell, RefCell};
 use std::path::Path;
@@ -30,23 +30,23 @@ fn err(path: &Path, e: impl std::fmt::Display) -> CoreError {
     }
 }
 
-/// Wartet auf Preroll (oder Fehler) nach einem Zustandswechsel oder Sprung.
+/// Waits for preroll (or an error) after a state change or seek.
 fn wait_async_done(bus: &gst::Bus, path: &Path) -> Result<()> {
     let msg = bus
         .timed_pop_filtered(
             gst::ClockTime::from_seconds(10),
             &[gst::MessageType::AsyncDone, gst::MessageType::Error],
         )
-        .ok_or_else(|| err(path, "Zeitüberschreitung beim Öffnen"))?;
+        .ok_or_else(|| err(path, "timed out while opening"))?;
     match msg.view() {
         gst::MessageView::Error(e) => Err(err(path, e.error())),
         _ => Ok(()),
     }
 }
 
-/// Ein Bild aus dem ersten Zehntel des Videos (höchstens bei 1 s), aufrecht
-/// gedreht (Handyvideos tragen die Drehung nur als Tag) und verkleinert.
-/// Läuft in Worker-Threads.
+/// A frame from the first tenth of the video (1 s at most), rotated
+/// upright (phone videos carry the rotation only as a tag) and shrunk.
+/// Runs in worker threads.
 pub fn grab_frame(path: &Path, max_edge: u32) -> Result<DynamicImage> {
     gst_init();
     let uri = gio::File::for_path(path).uri();
@@ -70,9 +70,9 @@ pub fn grab_frame(path: &Path, max_edge: u32) -> Result<DynamicImage> {
         .property("audio-sink", &fakesink)
         .build()
         .map_err(|e| err(path, e))?;
-    // Nur Bild dekodieren, Ton und Untertitel gar nicht erst anfassen.
+    // Decode only the picture, don't touch audio and subtitles at all.
     playbin.set_property_from_str("flags", "video");
-    let bus = playbin.bus().ok_or_else(|| err(path, "kein Bus"))?;
+    let bus = playbin.bus().ok_or_else(|| err(path, "no bus"))?;
 
     let result = (|| {
         playbin
@@ -92,18 +92,18 @@ pub fn grab_frame(path: &Path, max_edge: u32) -> Result<DynamicImage> {
         }
         let sample = appsink
             .try_pull_preroll(gst::ClockTime::from_seconds(5))
-            .ok_or_else(|| err(path, "kein Bild bekommen"))?;
+            .ok_or_else(|| err(path, "got no frame"))?;
         let s = sample
             .caps()
             .and_then(|c| c.structure(0).map(|s| s.to_owned()))
-            .ok_or_else(|| err(path, "keine Caps"))?;
+            .ok_or_else(|| err(path, "no caps"))?;
         let w = s.get::<i32>("width").map_err(|e| err(path, e))? as u32;
         let h = s.get::<i32>("height").map_err(|e| err(path, e))? as u32;
         let buffer = sample.buffer().ok_or_else(|| err(path, "leerer Puffer"))?;
         let map = buffer.map_readable().map_err(|e| err(path, e))?;
-        // RGBA: Zeilen sind ohnehin auf 4 Byte ausgerichtet, also dicht gepackt.
+        // RGBA: rows are 4-byte aligned anyway, so tightly packed.
         let img = RgbaImage::from_raw(w, h, map.as_slice().to_vec())
-            .ok_or_else(|| err(path, "Puffer passt nicht zu den Maßen"))?;
+            .ok_or_else(|| err(path, "buffer doesn't match the dimensions"))?;
         let img = DynamicImage::ImageRgba8(img);
         Ok(if w.max(h) > max_edge {
             img.thumbnail(max_edge, max_edge)
@@ -117,15 +117,15 @@ pub fn grab_frame(path: &Path, max_edge: u32) -> Result<DynamicImage> {
 
 // ---------------------------------------------------------------- Player
 
-/// Woher das Video kommt. Immich bekommt den Schlüssel als Header, nicht in der URL.
-pub enum Quelle {
-    Datei(std::path::PathBuf),
+/// Where the video comes from. Immich gets the key as a header, not in the URL.
+pub enum VideoSource {
+    File(std::path::PathBuf),
     Http { url: String, api_key: String },
 }
 
-/// `playbin` mit `gtk4paintablesink`. GtkMediaFile reicht nur lokale Dateien
-/// direkt an GStreamer durch; bei HTTP liest es selbst und scheitert.
-struct Wiedergabe {
+/// `playbin` with `gtk4paintablesink`. GtkMediaFile only passes local files
+/// straight to GStreamer; over HTTP it reads by itself and fails.
+struct Playback {
     playbin: gst::Element,
     _bus: gst::bus::BusWatchGuard,
 }
@@ -138,10 +138,10 @@ pub struct VideoView {
     play: gtk::Button,
     mute: gtk::Button,
     volume: gtk::Scale,
-    aktiv: RefCell<Option<Wiedergabe>>,
+    aktiv: RefCell<Option<Playback>>,
     playing: Cell<bool>,
     muted: Cell<bool>,
-    /// Lautstärke merkt sich Blick über Videos hinweg, stumm startet trotzdem jedes.
+    /// Blick remembers the volume across videos, but every video still starts muted.
     level: Cell<f64>,
     on_error: RefCell<Option<ErrorCallback>>,
 }
@@ -172,15 +172,15 @@ impl VideoView {
             .hexpand(true)
             .vexpand(true)
             .build();
-        let play = flat_button("media-playback-start-symbolic", "Abspielen (Leertaste)");
-        let mute = flat_button("audio-volume-muted-symbolic", "Ton an (M)");
+        let play = flat_button("media-playback-start-symbolic", "Play (space)");
+        let mute = flat_button("audio-volume-muted-symbolic", "Unmute (M)");
         let volume = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1.0, 0.05);
         volume.set_draw_value(false);
         volume.set_width_request(120);
         volume.set_value(VOLUME_DEFAULT);
-        volume.update_property(&[gtk::accessible::Property::Label("Lautstärke")]);
-        volume.set_tooltip_text(Some("Lautstärke (Pfeil hoch/runter)"));
-        // Schwebende Leiste wie die Zoomknöpfe: `toolbar` + `osd`.
+        volume.update_property(&[gtk::accessible::Property::Label("Volume")]);
+        volume.set_tooltip_text(Some("Volume (arrow up/down)"));
+        // Floating bar like the zoom buttons: `toolbar` + `osd`.
         let bar = gtk::Box::builder()
             .css_classes(["toolbar", "osd"])
             .halign(gtk::Align::Center)
@@ -223,7 +223,7 @@ impl VideoView {
             this,
             move |s| {
                 this.level.set(s.value());
-                // Wer am Regler dreht, will etwas hören.
+                // Whoever turns the slider wants to hear something.
                 if s.value() > 0.0 {
                     this.muted.set(false);
                 }
@@ -231,7 +231,7 @@ impl VideoView {
                 this.sync();
             }
         ));
-        // Klick ins Bild: Abspielen/Anhalten, wie in jedem Player.
+        // Click on the picture: play/pause, like in any player.
         let click = gtk::GestureClick::new();
         click.connect_released(glib::clone!(
             #[weak]
@@ -257,12 +257,12 @@ impl VideoView {
         }
     }
 
-    /// Lädt und startet das Video, stumm.
-    pub fn open(self: &Rc<Self>, quelle: Quelle, label: &str) {
+    /// Loads and starts the video, muted.
+    pub fn open(self: &Rc<Self>, source: VideoSource, label: &str) {
         self.stop();
         self.picture
             .update_property(&[gtk::accessible::Property::Label(label)]);
-        match self.build(quelle) {
+        match self.build(source) {
             Ok(w) => {
                 self.aktiv.replace(Some(w));
                 self.muted.set(true);
@@ -273,26 +273,26 @@ impl VideoView {
         }
     }
 
-    fn build(self: &Rc<Self>, quelle: Quelle) -> std::result::Result<Wiedergabe, String> {
+    fn build(self: &Rc<Self>, source: VideoSource) -> std::result::Result<Playback, String> {
         gst_init();
         let make = |name: &str| {
             gst::ElementFactory::make(name)
                 .build()
-                .map_err(|_| format!("GStreamer-Element {name} fehlt"))
+                .map_err(|_| format!("GStreamer element {name} missing"))
         };
         let sink = make("gtk4paintablesink")?;
         let paintable = sink.property::<gdk::Paintable>("paintable");
         self.picture.set_paintable(Some(&paintable));
-        // Kein video-filter: Die Drehung aus dem Tag setzt der Sink selbst um.
-        // Ein videoflip davor zwingt Systemspeicher und bricht unter Wayland
-        // die Aushandlung mit GL/DMABuf (not-negotiated).
+        // No video-filter: the sink applies the rotation from the tag itself.
+        // A videoflip in front forces system memory and breaks the GL/DMABuf
+        // negotiation under Wayland (not-negotiated).
         let playbin = make("playbin")?;
         playbin.set_property("video-sink", &sink);
-        // Keine Untertitel: Bild und Ton, Lautstärke in Software.
+        // No subtitles: picture and sound, volume in software.
         playbin.set_property_from_str("flags", "video+audio+soft-volume");
-        let (uri, key) = match quelle {
-            Quelle::Datei(p) => (gio::File::for_path(p).uri().to_string(), None),
-            Quelle::Http { url, api_key } => (url, Some(api_key)),
+        let (uri, key) = match source {
+            VideoSource::File(p) => (gio::File::for_path(p).uri().to_string(), None),
+            VideoSource::Http { url, api_key } => (url, Some(api_key)),
         };
         playbin.set_property("uri", uri.as_str());
         if let Some(key) = key {
@@ -308,7 +308,7 @@ impl VideoView {
                 None
             });
         }
-        let bus = playbin.bus().ok_or("kein GStreamer-Bus")?;
+        let bus = playbin.bus().ok_or("no GStreamer bus")?;
         let weak = Rc::downgrade(self);
         let pb = playbin.downgrade();
         let watch = bus
@@ -317,7 +317,7 @@ impl VideoView {
                     return glib::ControlFlow::Break;
                 };
                 match msg.view() {
-                    // Kurze Clips laufen in Schleife, wie in Fotos-Apps üblich.
+                    // Short clips loop, as is usual in photo apps.
                     gst::MessageView::Eos(_) => {
                         let _ = pb.seek_simple(gst::SeekFlags::FLUSH, gst::ClockTime::ZERO);
                     }
@@ -331,13 +331,13 @@ impl VideoView {
                 glib::ControlFlow::Continue
             })
             .map_err(|e| e.to_string())?;
-        Ok(Wiedergabe {
+        Ok(Playback {
             playbin,
             _bus: watch,
         })
     }
 
-    /// Anhalten und Datei freigeben (beim Blättern, Zurückgehen).
+    /// Pause and release the file (when paging, going back).
     pub fn stop(&self) {
         if let Some(w) = self.aktiv.take() {
             let _ = w.playbin.set_state(gst::State::Null);
@@ -374,7 +374,7 @@ impl VideoView {
         self.sync();
     }
 
-    /// Lauter (+1) oder leiser (−1); hebt die Stummschaltung auf.
+    /// Louder (+1) or quieter (−1); lifts the mute.
     pub fn step_volume(&self, dir: f64) {
         let v = (self.volume.value() + dir * VOLUME_STEP).clamp(0.0, 1.0);
         self.volume.set_value(v);
@@ -383,12 +383,12 @@ impl VideoView {
     fn apply_volume(&self) {
         if let Some(w) = self.aktiv.borrow().as_ref() {
             w.playbin.set_property("mute", self.muted.get());
-            // Kubisch, damit der Regler sich gleichmäßig anfühlt.
+            // Cubic, so the slider feels even.
             w.playbin.set_property("volume", self.level.get().powi(3));
         }
     }
 
-    /// Kurzinfo für die Infotafel: Dauer und Maße, sobald GStreamer sie kennt.
+    /// Short info for the info panel: duration and dimensions, once GStreamer knows them.
     pub fn info_rows(&self) -> Vec<(&'static str, String)> {
         let Some((playbin, paintable)) = self
             .aktiv
@@ -402,7 +402,7 @@ impl VideoView {
         if let Some(d) = playbin.query_duration::<gst::ClockTime>() {
             let s = d.seconds();
             v.push((
-                "Dauer",
+                "Duration",
                 if s >= 3600 {
                     format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60)
                 } else {
@@ -413,19 +413,19 @@ impl VideoView {
         if let Some(p) = paintable {
             let (w, h) = (p.intrinsic_width(), p.intrinsic_height());
             if w > 0 && h > 0 {
-                v.push(("Maße", format!("{w} × {h}")));
+                v.push(("Dimensions", format!("{w} × {h}")));
             }
         }
         let audio = playbin.property::<i32>("n-audio") > 0;
-        v.push(("Ton", if audio { "ja" } else { "keiner" }.to_owned()));
+        v.push(("Audio", if audio { "yes" } else { "none" }.to_owned()));
         v
     }
 
     fn sync(&self) {
         let (icon, tip) = if self.playing.get() {
-            ("media-playback-pause-symbolic", "Anhalten (Leertaste)")
+            ("media-playback-pause-symbolic", "Pause (space)")
         } else {
-            ("media-playback-start-symbolic", "Abspielen (Leertaste)")
+            ("media-playback-start-symbolic", "Play (space)")
         };
         self.play.set_icon_name(icon);
         self.play.set_tooltip_text(Some(tip));
@@ -433,13 +433,13 @@ impl VideoView {
             .update_property(&[gtk::accessible::Property::Label(tip)]);
         let level = self.level.get();
         let (icon, tip) = if self.muted.get() || level <= 0.0 {
-            ("audio-volume-muted-symbolic", "Ton an (M)")
+            ("audio-volume-muted-symbolic", "Unmute (M)")
         } else if level < 0.34 {
-            ("audio-volume-low-symbolic", "Stumm (M)")
+            ("audio-volume-low-symbolic", "Mute (M)")
         } else if level < 0.67 {
-            ("audio-volume-medium-symbolic", "Stumm (M)")
+            ("audio-volume-medium-symbolic", "Mute (M)")
         } else {
-            ("audio-volume-high-symbolic", "Stumm (M)")
+            ("audio-volume-high-symbolic", "Mute (M)")
         };
         self.mute.set_icon_name(icon);
         self.mute.set_tooltip_text(Some(tip));

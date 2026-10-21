@@ -1,5 +1,5 @@
-//! Dublettensuche: Orte wählen, suchen, Treffer markieren und aufräumen.
-//! Die Suche selbst steckt in `blick-dupes`; hier ist nur die Oberfläche.
+//! Duplicate search: choose locations, search, mark hits and clean up.
+//! The search itself lives in `blick-dupes`; this is only the UI.
 
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
@@ -21,7 +21,7 @@ use gtk::{gdk, gio, glib};
 use crate::ctx::Ctx;
 use crate::runtime;
 
-/// Ort in der Liste: Pfad (beginnt mit `/`) oder Adresse (`smb://…`).
+/// Location in the list: path (starts with `/`) or address (`smb://…`).
 #[derive(Clone, PartialEq)]
 struct Location {
     uri: String,
@@ -43,7 +43,7 @@ impl Location {
     }
 }
 
-/// Lokal wie `LocalStorage`, aber mit Papierkorb über GIO.
+/// Local like `LocalStorage`, but with trash through GIO.
 struct TrashingLocal(LocalStorage);
 
 impl Storage for TrashingLocal {
@@ -113,7 +113,7 @@ pub struct DupesView {
     busy: Cell<bool>,
 }
 
-const MODES: [&str; 4] = ["Bilder (ähnlich)", "Inhalt (identisch)", "Dateinamen", "Ordner"];
+const MODES: [&str; 4] = ["Pictures (similar)", "Content (identical)", "File names", "Folders"];
 
 pub fn human_size(b: u64) -> String {
     const U: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
@@ -126,7 +126,7 @@ pub fn human_size(b: u64) -> String {
     if i == 0 {
         format!("{b} B")
     } else {
-        format!("{v:.1} {}", U[i]).replace('.', ",")
+        format!("{v:.1} {}", U[i])
     }
 }
 
@@ -149,34 +149,34 @@ impl DupesView {
         window: adw::ApplicationWindow,
     ) -> Rc<Self> {
         let loc_group = adw::PreferencesGroup::builder()
-            .title("Wo soll gesucht werden?")
-            .description("Orte als „Referenz“ markieren: Dateien dort bleiben immer erhalten.")
+            .title("Where should it search?")
+            .description("Mark locations as \"reference\": files there are always kept.")
             .build();
         let immich_row = adw::SwitchRow::builder()
-            .title("Immich-Bibliothek")
-            .subtitle("Vergleicht über die Prüfsummen des Servers, ohne Download")
+            .title("Immich library")
+            .subtitle("Compares by the server's checksums, no download")
             .build();
         let mode = adw::ComboRow::builder()
-            .title("Suchart")
+            .title("Search type")
             .model(&gtk::StringList::new(&MODES))
             .build();
         let threshold = adw::SpinRow::with_range(50.0, 100.0, 1.0);
-        threshold.set_title("Mindestähnlichkeit (%)");
+        threshold.set_title("Minimum similarity (%)");
         let rotation = adw::SwitchRow::builder()
-            .title("Gedrehte Bilder finden")
+            .title("Find rotated pictures")
             .build();
         let aspect = adw::SwitchRow::builder()
-            .title("Unterschiedliche Seitenverhältnisse zulassen")
-            .subtitle("Findet auch zugeschnittene Fassungen, aber mehr Fehltreffer")
+            .title("Allow different aspect ratios")
+            .subtitle("Also finds cropped versions, but more false hits")
             .build();
         let fuzzy = adw::SwitchRow::builder()
-            .title("Ähnliche Wörter gelten als gleich")
-            .subtitle("Ein Tippfehler Abstand, nur bei Dateinamen")
+            .title("Similar words count as equal")
+            .subtitle("One typo apart, file names only")
             .build();
         let min_kib = adw::SpinRow::with_range(0.0, 1_000_000.0, 10.0);
-        min_kib.set_title("Mindestgröße (KB)");
+        min_kib.set_title("Minimum size (KB)");
 
-        let find = adw::PreferencesGroup::builder().title("Suche").build();
+        let find = adw::PreferencesGroup::builder().title("Search").build();
         find.add(&mode);
         find.add(&threshold);
         find.add(&rotation);
@@ -185,7 +185,7 @@ impl DupesView {
         find.add(&min_kib);
 
         let add_folder = gtk::Button::builder()
-            .label("Ordner …")
+            .label("Folder …")
             .valign(gtk::Align::Center)
             .css_classes(["flat"])
             .build();
@@ -206,10 +206,10 @@ impl DupesView {
         setup_page.add(&imm_group);
         setup_page.add(&find);
 
-        let progress_label = gtk::Label::builder().label("Starte …").build();
+        let progress_label = gtk::Label::builder().label("Starting …").build();
         let progress_bar = gtk::ProgressBar::new();
         let cancel_btn = gtk::Button::builder()
-            .label("Abbrechen")
+            .label("Cancel")
             .halign(gtk::Align::Center)
             .build();
         let run_box = gtk::Box::builder()
@@ -255,8 +255,8 @@ impl DupesView {
 
         let empty = adw::StatusPage::builder()
             .icon_name("edit-copy-symbolic")
-            .title("Keine Dubletten gefunden")
-            .description("Mit anderen Einstellungen oder einer niedrigeren Ähnlichkeit noch einmal suchen.")
+            .title("No duplicates found")
+            .description("Search again with different settings or a lower similarity.")
             .build();
 
         let stack = gtk::Stack::new();
@@ -266,12 +266,12 @@ impl DupesView {
         stack.add_named(&empty, Some("empty"));
 
         let start = gtk::Button::builder()
-            .label("Suchen")
+            .label("Search")
             .css_classes(["suggested-action"])
             .build();
         let back = gtk::Button::builder()
             .icon_name("view-refresh-symbolic")
-            .tooltip_text("Neue Suche")
+            .tooltip_text("New search")
             .visible(false)
             .build();
         let header = adw::HeaderBar::new();
@@ -281,7 +281,7 @@ impl DupesView {
         view.add_top_bar(&header);
         view.set_content(Some(&stack));
         let page = adw::NavigationPage::builder()
-            .title("Dubletten")
+            .title("Duplicates")
             .tag("dupes")
             .child(&view)
             .build();
@@ -335,7 +335,7 @@ impl DupesView {
                 }
             }
         });
-        // Nach der Suche wird der Zurück-Knopf sichtbar (siehe `finish`).
+        // After the search the back button becomes visible (see `finish`).
         this.stack.connect_visible_child_name_notify({
             let back = back.clone();
             let start = this.start.clone();
@@ -385,7 +385,7 @@ impl DupesView {
         this
     }
 
-    /// Beim Öffnen der Seite: Bibliotheksordner anbieten, Immich nur mit Verbindung.
+    /// When the page opens: offer the library folders, Immich only when connected.
     pub fn prepare(self: &Rc<Self>, library_roots: &[PathBuf]) {
         {
             let mut locs = self.locations.borrow_mut();
@@ -450,7 +450,7 @@ impl DupesView {
         for (i, loc) in self.locations.borrow().iter().enumerate() {
             let row = adw::ActionRow::builder()
                 .title(glib::markup_escape_text(&parent_of(&format!("{}/x", loc.uri))))
-                .subtitle(if loc.local() { "Dieser Rechner" } else { "Entfernt" })
+                .subtitle(if loc.local() { "This computer" } else { "Remote" })
                 .build();
             row.add_prefix(&gtk::Image::from_icon_name(if loc.local() {
                 "folder-symbolic"
@@ -460,15 +460,15 @@ impl DupesView {
             let refsw = gtk::Switch::builder()
                 .valign(gtk::Align::Center)
                 .active(loc.reference)
-                .tooltip_text("Referenz: nie zum Löschen vorschlagen")
+                .tooltip_text("Reference: never suggest for deletion")
                 .build();
-            let reflabel = gtk::Label::new(Some("Referenz"));
+            let reflabel = gtk::Label::new(Some("Reference"));
             reflabel.add_css_class("dim-label");
             let del = gtk::Button::builder()
                 .icon_name("user-trash-symbolic")
                 .valign(gtk::Align::Center)
                 .css_classes(["flat"])
-                .tooltip_text("Aus der Liste nehmen")
+                .tooltip_text("Remove from list")
                 .build();
             row.add_suffix(&reflabel);
             row.add_suffix(&refsw);
@@ -508,7 +508,7 @@ impl DupesView {
     }
 
     fn choose_folder(self: &Rc<Self>) {
-        let dialog = gtk::FileDialog::builder().title("Ordner hinzufügen").modal(true).build();
+        let dialog = gtk::FileDialog::builder().title("Add folder").modal(true).build();
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = this)]
             self,
@@ -526,16 +526,16 @@ impl DupesView {
 
     fn ask_server(self: &Rc<Self>) {
         let entry = gtk::Entry::builder()
-            .placeholder_text("smb://nas.example/foto")
+            .placeholder_text("smb://nas.example/photos")
             .activates_default(true)
             .build();
         entry.set_input_purpose(gtk::InputPurpose::Url);
         let dialog = adw::AlertDialog::new(
-            Some("Server hinzufügen"),
-            Some("Adresse eines Freigabeordners, etwa smb://nas/foto, sftp://host/pfad oder davs://host/dav. Zugangsdaten fragt GNOME beim Verbinden ab."),
+            Some("Add server"),
+            Some("Address of a shared folder, such as smb://nas/photos, sftp://host/path or davs://host/dav. GNOME asks for credentials when connecting."),
         );
         dialog.set_extra_child(Some(&entry));
-        dialog.add_responses(&[("cancel", "Abbrechen"), ("add", "Verbinden")]);
+        dialog.add_responses(&[("cancel", "Cancel"), ("add", "Connect")]);
         dialog.set_response_appearance("add", adw::ResponseAppearance::Suggested);
         dialog.set_default_response(Some("add"));
         glib::spawn_future_local(glib::clone!(
@@ -547,7 +547,7 @@ impl DupesView {
                 }
                 let uri = entry.text().trim().trim_end_matches('/').to_owned();
                 if !uri.contains("://") {
-                    this.toast("Das ist keine Serveradresse (es fehlt etwa „smb://“).");
+                    this.toast("That isn't a server address (it's missing something like \"smb://\").");
                     return;
                 }
                 let file = gio::File::for_uri(&uri);
@@ -559,7 +559,7 @@ impl DupesView {
                     Ok(()) => {}
                     Err(e) if e.matches(gio::IOErrorEnum::AlreadyMounted) => {}
                     Err(e) => {
-                        this.toast(&format!("Verbinden fehlgeschlagen: {}", e.message()));
+                        this.toast(&format!("Connecting failed: {}", e.message()));
                         return;
                     }
                 }
@@ -568,7 +568,7 @@ impl DupesView {
                     .await
                 {
                     Ok(_) => this.add_location(uri),
-                    Err(e) => this.toast(&format!("Ordner nicht lesbar: {}", e.message())),
+                    Err(e) => this.toast(&format!("Folder not readable: {}", e.message())),
                 }
             }
         ));
@@ -624,7 +624,7 @@ impl DupesView {
             }
         }
         if specs.is_empty() {
-            self.toast("Bitte mindestens einen Ort hinzufügen.");
+            self.toast("Please add at least one location.");
             return;
         }
         self.save_settings();
@@ -633,7 +633,7 @@ impl DupesView {
             Ok(d) => Arc::new(d),
             Err(e) => {
                 tracing::warn!("Cache: {e}");
-                Arc::new(HashDb::in_memory().expect("Speicher-Datenbank"))
+                Arc::new(HashDb::in_memory().expect("in-memory database"))
             }
         };
         let scanner = Scanner { sources: specs, options: self.options(), db };
@@ -641,7 +641,7 @@ impl DupesView {
         *self.cancel.borrow_mut() = cancel.clone();
         self.busy.set(true);
         self.progress_bar.set_fraction(0.0);
-        self.progress_label.set_text("Orte werden gelesen …");
+        self.progress_label.set_text("Reading locations …");
         self.stack.set_visible_child_name("run");
 
         let (tx, rx) = async_channel::unbounded::<Result<Vec<Group>, String>>();
@@ -654,7 +654,7 @@ impl DupesView {
                 });
                 let _ = tx.send_blocking(r.map_err(|e| e.to_string()));
             })
-            .expect("Thread für die Dublettensuche ließ sich nicht starten");
+            .expect("duplicate search thread failed to start");
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = this)]
             self,
@@ -668,13 +668,13 @@ impl DupesView {
             #[weak(rename_to = this)]
             self,
             async move {
-                let r = rx.recv().await.unwrap_or_else(|_| Err("abgebrochen".into()));
+                let r = rx.recv().await.unwrap_or_else(|_| Err("cancelled".into()));
                 this.busy.set(false);
                 match r {
                     Ok(groups) => this.finish(groups, storages),
                     Err(e) => {
-                        if e != "abgebrochen" {
-                            this.toast(&format!("Suche fehlgeschlagen: {e}"));
+                        if e != "cancelled" {
+                            this.toast(&format!("Search failed: {e}"));
                         }
                         this.show_setup();
                     }
@@ -685,10 +685,10 @@ impl DupesView {
 
     fn show_progress(&self, p: Progress) {
         let text = match p.stage {
-            Stage::Listing => format!("Dateien lesen … {}", p.done),
-            Stage::Probing => "Vorprüfung …".to_owned(),
-            Stage::Hashing => "Dateien vergleichen …".to_owned(),
-            Stage::Grouping => "Treffer gruppieren …".to_owned(),
+            Stage::Listing => format!("Reading files … {}", p.done),
+            Stage::Probing => "Pre-check …".to_owned(),
+            Stage::Hashing => "Comparing files …".to_owned(),
+            Stage::Grouping => "Grouping hits …".to_owned(),
         };
         self.progress_label.set_text(&text);
         if p.total > 0 && p.stage != Stage::Listing {
@@ -710,7 +710,7 @@ impl DupesView {
         self.stack.set_visible_child_name(if empty { "empty" } else { "results" });
     }
 
-    /// Flache Liste: Kopfzeile je Gruppe, darunter die Mitglieder.
+    /// Flat list: a header row per group, the members below.
     fn rebuild(&self) {
         self.store.remove_all();
         let s = self.state.borrow();
@@ -726,7 +726,7 @@ impl DupesView {
         self.update_summary();
     }
 
-    /// Markierungen haben sich geändert: alle sichtbaren Zeilen neu binden.
+    /// Marks have changed: rebind all visible rows.
     fn refresh_rows(&self) {
         let n = self.store.n_items();
         self.store.items_changed(0, n, n);
@@ -737,7 +737,7 @@ impl DupesView {
         let s = self.state.borrow();
         let files: usize = s.groups.iter().map(|g| g.members.len()).sum();
         let text = format!(
-            "{} Gruppen, {} Dateien · {} markiert ({})",
+            "{} groups, {} files · {} marked ({})",
             s.groups.len(),
             files,
             s.marks.count(),
@@ -759,36 +759,36 @@ impl DupesView {
         let mark_menu = gio::Menu::new();
         let keep = gio::Menu::new();
         for (id, label) in [
-            ("resolution", "Alle außer der höchsten Auflösung"),
-            ("biggest", "Alle außer der größten Datei"),
-            ("newest", "Alle außer der neuesten"),
-            ("oldest", "Alle außer der ältesten"),
-            ("shortest", "Alle außer dem kürzesten Pfad"),
+            ("resolution", "All but the highest resolution"),
+            ("biggest", "All but the largest file"),
+            ("newest", "All but the newest"),
+            ("oldest", "All but the oldest"),
+            ("shortest", "All but the shortest path"),
         ] {
             keep.append(Some(label), Some(&format!("dupes.mark-{id}")));
         }
         mark_menu.append_section(None, &keep);
         let other = gio::Menu::new();
-        other.append(Some("Nach Pfadteil markieren …"), Some("dupes.mark-text"));
-        other.append(Some("Auswahl aufheben"), Some("dupes.mark-none"));
+        other.append(Some("Mark by path part …"), Some("dupes.mark-text"));
+        other.append(Some("Clear marks"), Some("dupes.mark-none"));
         mark_menu.append_section(None, &other);
         let mark_btn = gtk::MenuButton::builder()
-            .label("Markieren")
+            .label("Mark")
             .menu_model(&mark_menu)
             .build();
 
         let act_menu = gio::Menu::new();
         let a1 = gio::Menu::new();
-        a1.append(Some("In den Papierkorb"), Some("dupes.trash"));
-        a1.append(Some("Verschieben nach …"), Some("dupes.move"));
-        a1.append(Some("Durch Hardlink ersetzen"), Some("dupes.hardlink"));
-        a1.append(Some("Endgültig löschen"), Some("dupes.delete"));
+        a1.append(Some("Move to trash"), Some("dupes.trash"));
+        a1.append(Some("Move to …"), Some("dupes.move"));
+        a1.append(Some("Replace with hardlink"), Some("dupes.hardlink"));
+        a1.append(Some("Delete permanently"), Some("dupes.delete"));
         act_menu.append_section(None, &a1);
         let a2 = gio::Menu::new();
-        a2.append(Some("Als CSV exportieren …"), Some("dupes.csv"));
+        a2.append(Some("Export as CSV …"), Some("dupes.csv"));
         act_menu.append_section(None, &a2);
         let act_btn = gtk::MenuButton::builder()
-            .label("Aktion")
+            .label("Action")
             .menu_model(&act_menu)
             .css_classes(["suggested-action"])
             .build();
@@ -832,9 +832,9 @@ impl DupesView {
             }),
         );
         add("mark-text", Rc::new(|t| t.ask_mark_text()));
-        add("trash", Rc::new(|t| t.confirm_apply(Action::Trash, "in den Papierkorb legen", false)));
-        add("delete", Rc::new(|t| t.confirm_apply(Action::Delete, "endgültig löschen", true)));
-        add("hardlink", Rc::new(|t| t.confirm_apply(Action::Hardlink(Keep::ShortestPath), "durch Hardlinks ersetzen", false)));
+        add("trash", Rc::new(|t| t.confirm_apply(Action::Trash, "Trash", false)));
+        add("delete", Rc::new(|t| t.confirm_apply(Action::Delete, "Permanently delete", true)));
+        add("hardlink", Rc::new(|t| t.confirm_apply(Action::Hardlink(Keep::ShortestPath), "Hardlink", false)));
         add("move", Rc::new(|t| t.choose_move_target()));
         add("csv", Rc::new(|t| t.export_csv()));
         self.page.insert_action_group("dupes", Some(&group));
@@ -842,15 +842,15 @@ impl DupesView {
 
     fn ask_mark_text(self: &Rc<Self>) {
         let entry = gtk::Entry::builder()
-            .placeholder_text("/Downloads/ oder kopie")
+            .placeholder_text("/Downloads/ or copy")
             .activates_default(true)
             .build();
         let dialog = adw::AlertDialog::new(
-            Some("Nach Pfadteil markieren"),
-            Some("Markiert alle Dateien, in deren Pfad der Text vorkommt. In jeder Gruppe bleibt mindestens eine übrig."),
+            Some("Mark by path part"),
+            Some("Marks all files whose path contains the text. At least one file stays unmarked in every group."),
         );
         dialog.set_extra_child(Some(&entry));
-        dialog.add_responses(&[("cancel", "Abbrechen"), ("ok", "Markieren")]);
+        dialog.add_responses(&[("cancel", "Cancel"), ("ok", "Mark")]);
         dialog.set_default_response(Some("ok"));
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = this)]
@@ -880,16 +880,16 @@ impl DupesView {
         }
         if !full.is_empty() {
             self.toast(&format!(
-                "In {} Gruppe(n) ist alles markiert. Mindestens eine Datei muss übrig bleiben.",
+                "Everything is marked in {} group(s). At least one file has to stay.",
                 full.len()
             ));
             return;
         }
         let dialog = adw::AlertDialog::new(
-            Some(&format!("{count} Dateien {verb}?")),
-            Some(&format!("Zusammen {}.", human_size(bytes))),
+            Some(&format!("{verb} {count} files?")),
+            Some(&format!("Together {}.", human_size(bytes))),
         );
-        dialog.add_responses(&[("cancel", "Abbrechen"), ("ok", "Ausführen")]);
+        dialog.add_responses(&[("cancel", "Cancel"), ("ok", "Run")]);
         dialog.set_response_appearance(
             "ok",
             if destructive { adw::ResponseAppearance::Destructive } else { adw::ResponseAppearance::Suggested },
@@ -906,7 +906,7 @@ impl DupesView {
     }
 
     fn choose_move_target(self: &Rc<Self>) {
-        let dialog = gtk::FileDialog::builder().title("Zielordner").modal(true).build();
+        let dialog = gtk::FileDialog::builder().title("Target folder").modal(true).build();
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = this)]
             self,
@@ -933,11 +933,11 @@ impl DupesView {
                 return;
             }
             Err(_) => {
-                self.toast("Die Aktion ist abgestürzt.");
+                self.toast("The action crashed.");
                 return;
             }
         };
-        // Erledigte Mitglieder aus den Ergebnissen nehmen; Gruppen ohne Rest fallen weg.
+        // Take finished members out of the results; groups with nothing left drop out.
         let failed: std::collections::HashSet<&str> =
             outcome.failed.iter().map(|(u, _)| u.as_str()).collect();
         let mut kept = Vec::new();
@@ -962,17 +962,17 @@ impl DupesView {
         if self.state.borrow().groups.is_empty() {
             self.stack.set_visible_child_name("empty");
         }
-        let mut text = format!("{} Dateien erledigt ({})", outcome.done, human_size(outcome.bytes));
+        let mut text = format!("{} files done ({})", outcome.done, human_size(outcome.bytes));
         if let Some((u, e)) = outcome.failed.first() {
-            text.push_str(&format!(". {} fehlgeschlagen, z. B. {}: {e}", outcome.failed.len(), file_name(u)));
+            text.push_str(&format!(". {} failed, e.g. {}: {e}", outcome.failed.len(), file_name(u)));
         }
         self.toasts.add_toast(adw::Toast::builder().title(text).timeout(10).build());
     }
 
     fn export_csv(self: &Rc<Self>) {
         let dialog = gtk::FileDialog::builder()
-            .title("Ergebnisse exportieren")
-            .initial_name("dubletten.csv")
+            .title("Export results")
+            .initial_name("duplicates.csv")
             .modal(true)
             .build();
         glib::spawn_future_local(glib::clone!(
@@ -987,8 +987,8 @@ impl DupesView {
                     results::export_csv(&s.groups, &s.marks)
                 };
                 match std::fs::write(&path, csv) {
-                    Ok(()) => this.toast("CSV gespeichert."),
-                    Err(e) => this.toast(&format!("Speichern fehlgeschlagen: {e}")),
+                    Ok(()) => this.toast("CSV saved."),
+                    Err(e) => this.toast(&format!("Saving failed: {e}")),
                 }
             }
         ));
@@ -1027,7 +1027,7 @@ impl DupesView {
                 text.append(&title);
                 text.append(&sub);
                 text.append(&meta);
-                let badge = gtk::Label::new(Some("Referenz"));
+                let badge = gtk::Label::new(Some("Reference"));
                 badge.add_css_class("caption");
                 badge.add_css_class("accent");
                 badge.set_valign(gtk::Align::Center);
@@ -1077,7 +1077,7 @@ impl DupesView {
                         sub.set_visible(false);
                         meta.set_visible(false);
                         title.set_markup(&format!(
-                            "<b>Gruppe {}</b> · {} % · {} Dateien · {} Überschuss",
+                            "<b>Group {}</b> · {} % · {} files · {} surplus",
                             group + 1,
                             g.score,
                             g.members.len(),
@@ -1140,7 +1140,7 @@ impl DupesView {
         });
     }
 
-    /// Alle Dateien der Gruppe nebeneinander: die angeklickte zuerst, dann das beste Mitglied.
+    /// All files of the group side by side: the clicked one first, then the best member.
     fn compare(self: &Rc<Self>, group: usize, index: usize) {
         let members: Vec<Member> = {
             let s = self.state.borrow();
@@ -1161,7 +1161,7 @@ impl DupesView {
         content.set_margin_bottom(12);
         for m in &members {
             let col = gtk::Box::new(gtk::Orientation::Vertical, 6);
-            // Ab drei Bildern bekommt jede Spalte eine Mindestbreite, der Rest scrollt.
+            // From three pictures on every column gets a minimum width, the rest scrolls.
             col.set_width_request(if members.len() > 2 { 340 } else { 1 });
             let pic = gtk::Picture::builder()
                 .content_fit(gtk::ContentFit::Contain)
@@ -1199,7 +1199,7 @@ impl DupesView {
         view.add_top_bar(&adw::HeaderBar::new());
         view.set_content(Some(&scroller));
         let dialog = adw::Dialog::builder()
-            .title("Vergleich")
+            .title("Comparison")
             .content_width(1000)
             .content_height(620)
             .child(&view)
@@ -1208,8 +1208,8 @@ impl DupesView {
     }
 }
 
-/// Bild für Kachel (`big = false`) oder Vergleich. Lokal über den Thumbnail-Lader
-/// bzw. direkt, Immich über den Server, andere Orte nur bis 40 MB.
+/// Image for a tile (`big = false`) or the comparison. Local through the thumbnail loader
+/// or directly, Immich through the server, other locations only up to 40 MB.
 async fn fetch_texture(ctx: &Rc<Ctx>, m: &Member, big: bool) -> Option<gdk::Texture> {
     let uri = m.entry.uri.clone();
     let px_max = if big { 1400 } else { 160 };

@@ -1,6 +1,6 @@
-/* Blick nutzt die Stock-Stile von libadwaita. Einzige Ausnahme ist der
-   Hell/Dunkel-Umschalter im Hauptmenü: libadwaita hat dafür kein fertiges
-   Widget, GNOME Text Editor und Console bauen ihn genauso nach. */
+/* Blick uses libadwaita's stock styles. The only exception is the
+   light/dark switcher in the main menu: libadwaita has no ready-made
+   widget for it, GNOME Text Editor and Console rebuild it the same way. */
 
 .themeselector {
   margin: 9px 0 6px;
@@ -49,7 +49,7 @@
   border-radius: 9999px;
 }
 
-/* Monatsschild über dem Immich-Bogen, wie das Datum beim Scrollen in Fotos-Apps. */
+/* Month badge over the Immich sheet, like the date while scrolling in photo apps. */
 .monthpill {
   padding: 6px 14px;
   border-radius: 9999px;

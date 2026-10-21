@@ -1,4 +1,4 @@
-//! Batch-Läufe über viele Dateien: parallel, abbrechbar, mit Fortschritt.
+//! Batch runs over many files: parallel, cancellable, with progress.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -14,8 +14,8 @@ pub struct Report {
     pub cancelled: usize,
 }
 
-/// Führt `op` für jede Datei aus. `progress(fertig, gesamt)` kommt aus
-/// Worker-Threads; die App leitet es selbst in den UI-Thread weiter.
+/// Runs `op` for every file. `progress(done, total)` is called from
+/// worker threads; the app forwards it to the UI thread itself.
 pub fn run<T, F, P>(paths: &[PathBuf], cancel: &AtomicBool, progress: P, op: F) -> Report
 where
     F: Fn(&Path) -> Result<T> + Sync,

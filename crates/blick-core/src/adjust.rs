@@ -1,11 +1,11 @@
-//! Helligkeit, Kontrast, Sättigung auf RGBA8.
+//! Brightness, contrast and saturation on RGBA8.
 //!
-//! Helligkeit und Kontrast wirken pro Kanal und laufen über eine 256er-Tabelle.
-//! Sättigung mischt mit der Luminanz (Rec. 709). Parallelisiert in Streifen.
+//! Brightness and contrast work per channel through a 256-entry table.
+//! Saturation mixes with luminance (Rec. 709). Runs in parallel stripes.
 
 use rayon::prelude::*;
 
-/// Alle Werte im Bereich -1.0 ..= 1.0, 0.0 heißt unverändert.
+/// All values range from -1.0 ..= 1.0, where 0.0 means unchanged.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Adjustments {
     pub brightness: f32,
@@ -41,7 +41,7 @@ impl Adjustments {
     }
 }
 
-/// Streifengröße in Pixeln: groß genug gegen Rayon-Overhead, klein genug für gute Verteilung.
+/// Stripe size in pixels: big enough to beat Rayon overhead, small enough to spread evenly.
 const CHUNK_PIXELS: usize = 16 * 1024;
 
 pub fn apply(rgba: &mut [u8], adj: Adjustments) {

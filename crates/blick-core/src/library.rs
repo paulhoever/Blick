@@ -1,4 +1,4 @@
-//! Ordner einlesen.
+//! Reading folders.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -9,7 +9,7 @@ pub fn is_supported(path: &Path) -> bool {
     crate::formats::kind_of(path).is_some()
 }
 
-/// Alle Bilder direkt im Ordner (nicht rekursiv), natürlich sortiert:
+/// All images directly in the folder (not recursive), naturally sorted:
 /// `IMG_2.jpg` kommt vor `IMG_10.jpg`.
 pub fn scan_dir(dir: &Path) -> Result<Vec<PathBuf>> {
     let entries = std::fs::read_dir(dir).map_err(|e| CoreError::io(dir, e))?;
@@ -27,21 +27,21 @@ pub fn scan_dir(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// Ein Ordner mit Bildern innerhalb einer Bibliothek.
+/// A folder with images inside a library.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Album {
     pub dir: PathBuf,
-    /// Pfad relativ zur Bibliothek, mit `/` getrennt. Leer für die Wurzel selbst.
+    /// Path relative to the library, separated by `/`. Empty for the root itself.
     pub rel: String,
     pub count: usize,
-    /// Erstes Bild in Ordnerreihenfolge, als Titelbild.
+    /// First image in folder order, used as the cover.
     pub cover: PathBuf,
-    /// Alle Bilder des Ordners, natürlich sortiert.
+    /// All images in the folder, naturally sorted.
     pub images: Vec<PathBuf>,
 }
 
-/// Ordner, die nie Fotos des Nutzers enthalten: Thumbnail-Ablagen von NAS und
-/// Dateimanagern, Papierkörbe.
+/// Folders that never hold the user's photos: thumbnail stores of NAS boxes and
+/// file managers, trash folders.
 const SKIP_DIRS: &[&str] = &[
     "@eaDir",
     "#recycle",
@@ -55,9 +55,9 @@ fn skip_dir(name: &std::ffi::OsStr) -> bool {
     n.starts_with('.') || SKIP_DIRS.iter().any(|s| n.eq_ignore_ascii_case(s))
 }
 
-/// Durchläuft `root` rekursiv und meldet jeden Ordner mit Bildern, sobald er
-/// gelesen ist. Symlinks auf Ordner werden nicht verfolgt, so gibt es keine
-/// Schleifen. Unlesbare Unterordner werden übersprungen, nicht gemeldet.
+/// Walks `root` recursively and reports every folder with images as soon as it
+/// has been read. Symlinks to folders aren't followed, so there are no
+/// loops. Unreadable subfolders are skipped, not reported.
 /// `cancel` bricht zwischen zwei Ordnern ab.
 pub fn scan_tree(root: &Path, cancel: &AtomicBool, mut on_album: impl FnMut(Album)) -> Result<()> {
     std::fs::read_dir(root).map_err(|e| CoreError::io(root, e))?;
@@ -104,15 +104,15 @@ pub fn scan_tree(root: &Path, cancel: &AtomicBool, mut on_album: impl FnMut(Albu
                 images,
             });
         }
-        // Rückwärts auf den Stapel, damit alphabetisch zuerst gelesen wird.
+        // Push in reverse so the alphabetically first one is read first.
         sort_paths(&mut subdirs);
         stack.extend(subdirs.into_iter().rev());
     }
     Ok(())
 }
 
-/// Alle Unterordner unter `root` (ohne versteckte, NAS-Ablagen und Symlinks),
-/// höchstens `limit` Stück, `root` selbst zuerst. Für die Ordnerüberwachung.
+/// All subfolders under `root` (without hidden ones, NAS stores and symlinks),
+/// at most `limit` of them, `root` itself first. For folder watching.
 pub fn subdirs(root: &Path, limit: usize) -> Vec<PathBuf> {
     let mut out = vec![root.to_owned()];
     let mut stack = vec![root.to_owned()];
@@ -133,15 +133,15 @@ pub fn subdirs(root: &Path, limit: usize) -> Vec<PathBuf> {
     out
 }
 
-/// Alle Bilder unter `root` samt Unterordnern: erst die des Ordners selbst,
-/// dann Unterordner für Unterordner in alphabetischer Reihenfolge.
+/// All images under `root` including subfolders: first those of the folder itself,
+/// then subfolder by subfolder in alphabetical order.
 pub fn scan_recursive(root: &Path, cancel: &AtomicBool) -> Result<Vec<PathBuf>> {
     let mut all = Vec::new();
     scan_tree(root, cancel, |a| all.extend(a.images))?;
     Ok(all)
 }
 
-/// Natürlich sortiert, erst nach Name ohne Endung, damit `foto-bearbeitet.jpg`
+/// Naturally sorted, by name without extension first, so `photo-edited.jpg`
 /// hinter `foto.jpg` landet.
 fn sort_paths(paths: &mut [PathBuf]) {
     let key = |p: &PathBuf| {

@@ -1,4 +1,4 @@
-//! Bearbeitetes Bild in voller Auflösung speichern.
+//! Save the edited image at full resolution.
 
 use std::path::{Path, PathBuf};
 
@@ -9,8 +9,8 @@ use crate::encode::{carry_metadata, encode, format_of, write_atomic};
 use crate::error::{CoreError, Result};
 use crate::look::Render;
 
-/// Ob Blick diese Datei überschreiben kann. RAW, HEIC & Co. kann es nur lesen,
-/// animierte GIFs würden ihre Animation verlieren.
+/// Whether Blick can overwrite this file. It can only read RAW, HEIC and the like,
+/// and animated GIFs would lose their animation.
 pub fn can_overwrite(path: &Path) -> bool {
     crate::formats::kind_of(path) == Some(crate::formats::Kind::Raster)
         && !matches!(
@@ -19,13 +19,13 @@ pub fn can_overwrite(path: &Path) -> bool {
         )
 }
 
-/// `foto.jpg` → `foto-bearbeitet.jpg`, bei Kollision `foto-bearbeitet-2.jpg` usw.
+/// `photo.jpg` → `photo-edited.jpg`, on a collision `photo-edited-2.jpg` and so on.
 pub fn copy_path(src: &Path) -> PathBuf {
     let stem = src
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    // RAW, HEIC & Co. kann Blick nicht schreiben, die Kopie wird ein JPEG.
+    // Blick can't write RAW, HEIC and the like, so the copy becomes a JPEG.
     let writable = crate::formats::kind_of(src) == Some(crate::formats::Kind::Raster)
         && !matches!(
             crate::encode::format_of(src),
@@ -46,12 +46,12 @@ pub fn copy_path(src: &Path) -> PathBuf {
             dir.join(format!("{stem}-bearbeitet{suffix}{ext}"))
         })
         .find(|p| !p.exists())
-        .expect("irgendein Name ist frei")
+        .expect("some name is free")
 }
 
-/// Schneidet zu, wendet die Korrekturen auf das Original an und schreibt nach
-/// `dst`. `dst == src` überschreibt das Original (atomar). Zuschnitt zuerst,
-/// damit Vignette und Korn sich auf den neuen Rahmen beziehen.
+/// Crops, applies the adjustments to the original and writes to
+/// `dst`. `dst == src` overwrites the original (atomically). Crop first,
+/// so vignette and grain relate to the new frame.
 pub fn save_adjusted(
     src: &Path,
     dst: &Path,
@@ -132,7 +132,7 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let src = d.path().join("c.png");
         let mut img = image::RgbImage::from_pixel(40, 20, image::Rgb([10, 10, 10]));
-        // Rechte Hälfte hell, damit man sieht, welcher Teil übrig bleibt.
+        // Right half bright, so you can see which part is left over.
         for x in 20..40 {
             for y in 0..20 {
                 img.put_pixel(x, y, image::Rgb([250, 250, 250]));

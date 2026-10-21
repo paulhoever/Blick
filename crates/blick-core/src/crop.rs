@@ -1,17 +1,17 @@
 //! Zuschneiden.
 //!
-//! Der Zuschnitt ist ein Rechteck in Bruchteilen der Bildkante (0..=1), im
-//! gedrehten Bild gemessen. So passt er zur Vorschau genauso wie zum Original
-//! und lässt sich mit dem Bild drehen. Für die Oberfläche rechnet [`Rect`] in
-//! Bildpixeln, dort lassen sich Seitenverhältnisse exakt halten.
+//! The crop is a rectangle in fractions of the image edge (0..=1), measured
+//! in the rotated image. That way it fits the preview just as well as the original
+//! and rotates along with the picture. For the UI, [`Rect`] works in
+//! image pixels, where aspect ratios can be held exactly.
 
 use crate::decode::Pixels;
 use crate::rotate::Rotation;
 
-/// Kleinster Zuschnitt in Bildpixeln, damit ein Griff nicht im Nichts verschwindet.
+/// Smallest crop in image pixels, so a handle can't vanish into nothing.
 pub const MIN_PX: f64 = 16.0;
 
-/// Zuschnitt in Bruchteilen der Bildkante.
+/// Crop in fractions of the image edge.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Crop {
     pub x: f64,
@@ -28,13 +28,13 @@ impl Crop {
         h: 1.0,
     };
 
-    /// Ganzes Bild (bis auf Rundungsrauschen aus dem Sidecar).
+    /// Whole image (up to rounding noise from the sidecar).
     pub fn is_identity(&self) -> bool {
         const E: f64 = 1e-4;
         self.x.abs() < E && self.y.abs() < E && (self.w - 1.0).abs() < E && (self.h - 1.0).abs() < E
     }
 
-    /// In den gültigen Bereich holen. `None`, wenn nichts Sinnvolles übrig bleibt.
+    /// Clamp into the valid range. `None` if nothing sensible is left.
     pub fn sanitized(self) -> Option<Crop> {
         if ![self.x, self.y, self.w, self.h]
             .iter()
@@ -49,8 +49,8 @@ impl Crop {
         (w > 0.0 && h > 0.0).then_some(Crop { x, y, w, h })
     }
 
-    /// Pixelrechteck `(x, y, w, h)` in einem Bild der Größe `width` x `height`,
-    /// immer mindestens 1x1 und ganz im Bild.
+    /// Pixel rectangle `(x, y, w, h)` in an image of size `width` x `height`,
+    /// always at least 1x1 and fully inside the image.
     pub fn to_pixels(&self, width: u32, height: u32) -> (u32, u32, u32, u32) {
         let (fw, fh) = (width as f64, height as f64);
         let x0 = (self.x * fw).round().clamp(0.0, fw - 1.0) as u32;
@@ -60,7 +60,7 @@ impl Crop {
         (x0, y0, x1.max(x0 + 1) - x0, y1.max(y0 + 1) - y0)
     }
 
-    /// Größe des Ergebnisses bei einem Bild von `width` x `height`.
+    /// Size of the result for an image of `width` x `height`.
     pub fn output_size(&self, width: u32, height: u32) -> (u32, u32) {
         let (_, _, w, h) = self.to_pixels(width, height);
         (w, h)
@@ -84,17 +84,17 @@ impl Crop {
         }
     }
 
-    /// Derselbe Ausschnitt, nachdem das Bild um 90° gedreht wurde.
+    /// The same section after the image was rotated by 90°.
     pub fn rotated(&self, rot: Rotation) -> Crop {
         match rot {
-            // Ein Punkt (x, y) landet rechtsherum bei (1 − y, x).
+            // A point (x, y) ends up at (1 − y, x) when turning clockwise.
             Rotation::Right => Crop {
                 x: 1.0 - (self.y + self.h),
                 y: self.x,
                 w: self.h,
                 h: self.w,
             },
-            // Linksherum bei (y, 1 − x).
+            // Counterclockwise: (y, 1 − x).
             Rotation::Left => Crop {
                 x: self.y,
                 y: 1.0 - (self.x + self.w),
@@ -124,32 +124,32 @@ impl Crop {
     }
 }
 
-/// Seitenverhältnis für den Zuschnitt.
+/// Aspect ratio for the crop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Aspect {
     Free,
-    /// Wie das Bild selbst.
+    /// Same as the image itself.
     Original,
-    /// Breite : Höhe im Querformat, also immer `a >= b`.
+    /// Width : height in landscape, so always `a >= b`.
     Ratio(u32, u32),
 }
 
-/// Vorlagen in der Reihenfolge der Auswahlliste.
+/// Presets in the order of the selection list.
 pub const PRESETS: &[(&str, Aspect)] = &[
-    ("Frei", Aspect::Free),
+    ("Free", Aspect::Free),
     ("Original", Aspect::Original),
-    ("Quadrat (1:1)", Aspect::Ratio(1, 1)),
+    ("Square (1:1)", Aspect::Ratio(1, 1)),
     ("4:3", Aspect::Ratio(4, 3)),
-    ("3:2 (Kleinbild)", Aspect::Ratio(3, 2)),
+    ("3:2 (35 mm)", Aspect::Ratio(3, 2)),
     ("16:9", Aspect::Ratio(16, 9)),
     ("5:4", Aspect::Ratio(5, 4)),
     ("7:5 (13 × 18)", Aspect::Ratio(7, 5)),
-    ("2:1 (Panorama)", Aspect::Ratio(2, 1)),
+    ("2:1 (panorama)", Aspect::Ratio(2, 1)),
 ];
 
 impl Aspect {
-    /// Breite durch Höhe in Bildpixeln; `None` bei frei. `portrait` stellt
-    /// eine Vorlage hochkant, beim Original die gekippte Bildform.
+    /// Width over height in image pixels; `None` for free. `portrait` flips
+    /// a preset to upright; for the original it flips the image shape.
     pub fn ratio(self, img_w: f64, img_h: f64, portrait: bool) -> Option<f64> {
         let r = match self {
             Aspect::Free => return None,
@@ -160,13 +160,13 @@ impl Aspect {
         Some(if portrait { 1.0 / landscape } else { landscape })
     }
 
-    /// Ob Hoch/Quer bei diesem Verhältnis einen Unterschied macht.
+    /// Whether portrait/landscape makes a difference for this ratio.
     pub fn has_orientation(self) -> bool {
         !matches!(self, Aspect::Free | Aspect::Ratio(1, 1))
     }
 }
 
-/// Rechteck in Bildpixeln (Gleitkomma, damit Ziehen nicht ruckelt).
+/// Rectangle in image pixels (floating point so dragging doesn't stutter).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rect {
     pub x: f64,
@@ -175,7 +175,7 @@ pub struct Rect {
     pub h: f64,
 }
 
-/// Was gerade gezogen wird.
+/// What is being dragged right now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Handle {
     Move,
@@ -190,7 +190,7 @@ pub enum Handle {
 }
 
 impl Handle {
-    /// Richtung der bewegten Kanten: −1 links/oben, +1 rechts/unten, 0 fest.
+    /// Direction of the moving edges: −1 left/top, +1 right/bottom, 0 fixed.
     fn dirs(self) -> (i8, i8) {
         match self {
             Handle::Move => (0, 0),
@@ -220,7 +220,7 @@ impl Rect {
         (self.x + self.w / 2.0, self.y + self.h / 2.0)
     }
 
-    /// Größtes Rechteck mit `ratio` im Bild, möglichst um die Mitte von `self`.
+    /// Largest rectangle with `ratio` inside the image, centered on `self` where possible.
     pub fn fit_ratio(&self, ratio: Option<f64>, img_w: f64, img_h: f64) -> Rect {
         let Some(r) = ratio else {
             return self.clamped(img_w, img_h);
@@ -240,7 +240,7 @@ impl Rect {
         .clamped(img_w, img_h)
     }
 
-    /// Ins Bild schieben (Größe bleibt, solange sie passt).
+    /// Push into the image (size stays as long as it fits).
     pub fn clamped(&self, img_w: f64, img_h: f64) -> Rect {
         let w = self.w.min(img_w);
         let h = self.h.min(img_h);
@@ -262,9 +262,9 @@ impl Rect {
         .clamped(img_w, img_h)
     }
 
-    /// Ergebnis, wenn `handle` um `(dx, dy)` Bildpixel gezogen wird, ausgehend
-    /// von `self` (dem Stand beim Anfassen). Mit `ratio` bleibt das
-    /// Verhältnis, die gegenüberliegende Ecke bzw. Kante steht fest.
+    /// Result when `handle` is dragged by `(dx, dy)` image pixels, starting
+    /// from `self` (the state when grabbed). With `ratio` the ratio is kept
+    /// and the opposite corner or edge stays put.
     pub fn dragged(
         &self,
         handle: Handle,
@@ -279,7 +279,7 @@ impl Rect {
         }
         let (sx, sy) = handle.dirs();
         let min = MIN_PX.min(img_w).min(img_h);
-        // Fester Bezugspunkt und Platz bis zum Bildrand in Zugrichtung.
+        // Fixed anchor point and room to the image edge in the drag direction.
         let (ax, room_x) = match sx {
             1 => (self.x, img_w - self.x),
             -1 => (self.x + self.w, self.x + self.w),
@@ -312,8 +312,8 @@ impl Rect {
                 h = h.clamp(min, room_y.max(min));
             }
             Some(r) => {
-                // Bei Ecken gewinnt die Achse, die weiter gezogen wurde; bei
-                // Kanten folgt die andere Achse.
+                // For corners the axis dragged further wins; for
+                // edges the other axis follows.
                 w = match (sx, sy) {
                     (0, _) => h * r,
                     (_, 0) => w,
@@ -361,7 +361,7 @@ mod tests {
         };
         assert_eq!(c.to_pixels(400, 300), (100, 150, 200, 150));
         assert_eq!(Crop::FULL.to_pixels(7, 5), (0, 0, 7, 5));
-        // Winzig und am Rand: immer noch 1x1 im Bild.
+        // Tiny and at the edge: still 1x1 inside the image.
         let edge = Crop {
             x: 1.0,
             y: 1.0,
@@ -422,13 +422,13 @@ mod tests {
                     && close(back.h, c.h)
             );
         }
-        // Vier Mal rechts ist wieder dasselbe.
+        // Four turns to the right is the identity again.
         let mut r = c;
         for _ in 0..4 {
             r = r.rotated(Rotation::Right);
         }
         assert!(close(r.x, c.x) && close(r.y, c.y));
-        // Links oben im Querformat liegt nach Rechtsdrehung rechts oben.
+        // Top left in landscape ends up top right after turning right.
         let tl = Crop {
             x: 0.0,
             y: 0.0,
@@ -441,9 +441,9 @@ mod tests {
 
     #[test]
     fn rotation_matches_pixels() {
-        // 4x2-Bild, Pixelwert = Index. Zuschnitt rechte Hälfte, dann drehen:
-        // Erst schneiden, dann drehen muss dasselbe ergeben wie drehen, dann
-        // den gedrehten Zuschnitt anwenden.
+        // 4x2 image, pixel value = index. Crop the right half, then rotate:
+        // cropping first and rotating second has to give the same as rotating,
+        // then applying the rotated crop.
         let px = Pixels {
             width: 4,
             height: 2,
@@ -498,7 +498,7 @@ mod tests {
             Aspect::Ratio(3, 2).ratio(1.0, 1.0, true).unwrap(),
             2.0 / 3.0
         ));
-        // Original eines Hochkantbilds bleibt hochkant, wenn man es so will.
+        // The original of a portrait image stays portrait if you want it to.
         assert!(close(
             Aspect::Original.ratio(300.0, 400.0, true).unwrap(),
             0.75
@@ -519,7 +519,7 @@ mod tests {
         let full = Rect::full(400.0, 300.0);
         let sq = full.fit_ratio(Some(1.0), 400.0, 300.0);
         assert!(close(sq.w, 300.0) && close(sq.h, 300.0) && close(sq.x, 50.0));
-        // Um einen Ausschnitt am Rand: bleibt im Bild.
+        // Around a section at the edge: stays inside the image.
         let corner = Rect {
             x: 350.0,
             y: 0.0,
@@ -552,7 +552,7 @@ mod tests {
                 h: 110.0
             }
         );
-        // Über den Rand hinaus: hält am Rand.
+        // Past the edge: stops at the edge.
         let far = r.dragged(Handle::SE, 1000.0, 1000.0, None, 400.0, 300.0);
         assert_eq!(
             far,
@@ -563,7 +563,7 @@ mod tests {
                 h: 200.0
             }
         );
-        // Ganz zusammengeschoben: Mindestgröße, nicht umgeklappt.
+        // Pushed fully together: minimum size, not flipped.
         let tiny = r.dragged(Handle::W, 500.0, 0.0, None, 400.0, 300.0);
         assert!(close(tiny.w, MIN_PX) && close(tiny.x + tiny.w, 200.0));
     }
@@ -593,7 +593,7 @@ mod tests {
                 assert!(out.h >= MIN_PX - 1e-9, "{h:?}: {out:?}");
             }
         }
-        // Gegenüberliegende Ecke steht beim Ziehen an SE.
+        // Opposite corner stays fixed when dragging at SE.
         let se = r.dragged(Handle::SE, 30.0, 0.0, Some(1.5), 400.0, 300.0);
         assert!(close(se.x, 100.0) && close(se.y, 100.0) && close(se.w, 120.0));
     }

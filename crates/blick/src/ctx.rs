@@ -10,11 +10,11 @@ use blick_core::{Pixels, Result as CoreResult};
 use gtk::prelude::*;
 use gtk::{gdk, glib};
 
-/// Kantenlänge der Thumbnails in Pixeln. Die Kacheln sind kleiner,
-/// so bleibt es auch bei Skalierung 2 scharf.
+/// Edge length of thumbnails in pixels. The tiles are smaller,
+/// so it stays sharp at scale 2 too.
 pub const THUMB_PX: u32 = 320;
 
-/// RAM-Budget für dekodierte Vorschauen der Einzelansicht.
+/// RAM budget for decoded previews of the single view.
 const PREVIEW_BUDGET: usize = 384 * 1024 * 1024;
 
 pub struct Ctx {
@@ -61,10 +61,10 @@ type Queue = Arc<(Mutex<Vec<Job>>, Condvar)>;
 
 /// Thumbnail-Erzeugung in eigenen Threads, neueste Anfrage zuerst.
 ///
-/// Wer schnell durch einen großen Ordner scrollt, will die Kacheln sehen, bei
-/// denen er gerade ist, nicht die, an denen er vor zwei Sekunden vorbeikam.
-/// Deshalb ein Stapel statt einer Warteschlange, und Aufträge für Kacheln,
-/// die nicht mehr sichtbar sind, fliegen vorher raus.
+/// Someone scrolling fast through a big folder wants to see the tiles they
+/// are at right now, not the ones they passed two seconds ago.
+/// Hence a stack instead of a queue, and jobs for tiles that are no
+/// longer visible get dropped beforehand.
 pub struct ThumbLoader {
     queue: Queue,
 }
@@ -80,13 +80,13 @@ impl ThumbLoader {
             std::thread::Builder::new()
                 .name(format!("blick-thumb-{i}"))
                 .spawn(move || worker(&queue, &store))
-                .expect("Thread für Thumbnails ließ sich nicht starten");
+                .expect("thumbnail thread failed to start");
         }
         Self { queue }
     }
 
-    /// Liefert einen Empfänger für das Ergebnis und einen Schalter zum Abbrechen.
-    /// Wird abgebrochen, schließt sich der Kanal ohne Ergebnis.
+    /// Returns a receiver for the result and a switch to cancel.
+    /// If cancelled, the channel closes without a result.
     pub fn request(
         &self,
         path: PathBuf,

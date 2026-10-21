@@ -1,8 +1,10 @@
 # Blick
 
-Blick is an image viewer for GNOME, written in Rust with GTK 4 and libadwaita. A folder shows up as a contact sheet: every picture side by side, numbered in folder order. You can rotate a selection in one go, upload it to Immich, or tweak a single picture's brightness, contrast and saturation.
+English · [Deutsch](README.de.md)
 
-The interface is in German for now (see [Limits](#limits)), so the screenshots show German labels.
+Blick is an image viewer for GNOME, written in Rust with GTK 4 and libadwaita. A folder shows up as a contact sheet: every picture side by side, numbered in folder order. You can rotate a selection in one go, upload it to [Immich](https://immich.app), or tweak a single picture's brightness, contrast and saturation.
+
+The interface is English only for now (see [Limits](#limits)). The screenshots below were taken before the translation and still show German labels.
 
 ![Contact sheet with library](docs/screenshots/kontaktbogen.png)
 
@@ -50,7 +52,7 @@ You can switch between light and dark in the main menu, independent of the syste
 
 ### Immich
 
-Blick works with Immich 2.x and newer, tested against the 3.3.1 API. Uploads carry a checksum so the server can spot duplicates, and can go straight into an album. You page through albums and the timeline month by month, and you can download originals. In the single view, the full resolution arrives after the preview: for JPEG and similar through `size=fullsize`. For HEIC and RAW, as long as the server doesn't generate full-size images, Blick fetches the original and decodes it itself.
+Blick works with [Immich](https://immich.app) 2.x and newer, tested against the 3.3.1 API. Uploads carry a checksum so the server can spot duplicates, and can go straight into an album. You page through albums and the timeline month by month, and you can download originals. In the single view, the full resolution arrives after the preview: for JPEG and similar through `size=fullsize`. For HEIC and RAW, as long as the server doesn't generate full-size images, Blick fetches the original and decodes it itself.
 
 ## Keyboard shortcuts
 
@@ -87,7 +89,7 @@ flatpak run io.github.paulhoever.Blick
 
 ## Setting up Immich
 
-In Immich, create an API key under account settings. It needs `user.read`, `album.read`, `asset.read`, `asset.view`, `asset.download`, `asset.upload` and `albumAsset.create`. In Blick, enter the address and key under Preferences and press "Check and save". The key is then stored in the keyring (oo7, through the Secret portal inside the Flatpak) and the address in GSettings.
+In [Immich](https://immich.app), create an API key under account settings. It needs `user.read`, `album.read`, `asset.read`, `asset.view`, `asset.download`, `asset.upload` and `albumAsset.create`. In Blick, enter the address and key under Preferences and press "Check and save". The key is then stored in the keyring (oo7, through the Secret portal inside the Flatpak) and the address in GSettings.
 
 Don't test against a real account. `tools/immich_mock.py` fakes an Immich server using the pictures from any folder:
 
@@ -153,7 +155,7 @@ flatpak build-bundle repo blick.flatpak io.github.paulhoever.Blick --runtime-rep
 - The RAW tone match approximates the camera preview. It isn't the camera's tone curve, and without an embedded preview the develop stays flat.
 - Lightroom computes highlights, shadows, whites and blacks locally, Blick globally. Presets look similar, not identical.
 - Thumbnails following the freedesktop specification (shared with Nautilus) are missing. Inside the Flatpak that would need access to `~/.cache/thumbnails`.
-- There are no translations (gettext) yet, so the interface is German only.
+- There are no translations (gettext) yet, so the interface is English only.
 
 ## License
 

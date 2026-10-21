@@ -1,4 +1,4 @@
-//! Eine Kachel im Kontaktbogen: quadratischer Abzug, darunter Bildnummer und Name.
+//! A tile in the contact sheet: square print, with picture number and name below.
 
 use std::cell::RefCell;
 
@@ -18,11 +18,11 @@ mod imp {
     pub struct Tile {
         pub picture: gtk::Picture,
         pub broken: gtk::Image,
-        /// Kennzeichen für Videos, unten links im Abzug.
+        /// Marker for videos, bottom left of the print.
         pub video: gtk::Image,
         pub video_badge: gtk::Box,
         pub number: gtk::Label,
-        /// Laufende Nummer des gebundenen Bildes, für die Leertaste im Bogen.
+        /// Running number of the bound picture, for the space bar in the sheet.
         pub position: std::cell::Cell<u32>,
         pub name: gtk::Label,
         pub bindings: RefCell<Vec<glib::Binding>>,
@@ -41,7 +41,7 @@ mod imp {
             let obj = self.obj();
             obj.set_orientation(gtk::Orientation::Vertical);
             obj.set_spacing(6);
-            // Luft zwischen den Abzügen ohne eigenes CSS.
+            // Air between the prints without custom CSS.
             obj.set_margin_start(6);
             obj.set_margin_end(6);
             obj.set_margin_top(6);
@@ -56,15 +56,15 @@ mod imp {
             self.broken.add_css_class("dim-label");
             self.broken.set_visible(false);
 
-            // Abgerundeter Abzug wie in den Mockups von GNOME Fotos: `card`
-            // liefert Radius und Grundton, `overflow` schneidet das Bild zu.
+            // Rounded print as in the GNOME Photos mockups: `card`
+            // supplies radius and base tone, `overflow` clips the image.
             let frame = gtk::Overlay::new();
             frame.add_css_class("card");
             frame.set_overflow(gtk::Overflow::Hidden);
             frame.set_child(Some(&self.picture));
             frame.add_overlay(&self.broken);
 
-            // Plakette wie die schwebenden Leisten der Einzelansicht (`toolbar` + `osd`).
+            // Badge like the floating bars of the single view (`toolbar` + `osd`).
             self.video
                 .set_icon_name(Some("media-playback-start-symbolic"));
             self.video_badge.set_css_classes(&["toolbar", "osd"]);
@@ -140,7 +140,7 @@ impl Tile {
         );
     }
 
-    /// Position im Bogen (0-basiert).
+    /// Position in the sheet (0-based).
     pub fn position(&self) -> u32 {
         self.imp().position.get()
     }

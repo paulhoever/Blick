@@ -1,7 +1,7 @@
 //! Drehen um 90°.
 //!
-//! JPEG: nur das EXIF-Orientation-Tag wird umgeschrieben, die Bilddaten
-//! bleiben bitgleich. Alles andere wird gedreht und neu kodiert.
+//! JPEG: only the EXIF Orientation tag is rewritten, the image data
+//! stays bit-identical. Everything else is rotated and re-encoded.
 
 use std::path::Path;
 
@@ -30,7 +30,7 @@ impl Rotation {
     }
 }
 
-/// Dreher für Formate, die der Kern nur über die App lesen kann.
+/// Rotator for formats the core can only read through the app.
 pub type Fallback = dyn Fn(&Path, Rotation) -> Result<()> + Send + Sync;
 
 static FALLBACK: std::sync::OnceLock<Box<Fallback>> = std::sync::OnceLock::new();
@@ -41,16 +41,16 @@ pub fn set_fallback(f: impl Fn(&Path, Rotation) -> Result<()> + Send + Sync + 's
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Method {
-    /// Nur Metadaten geändert, verlustfrei.
+    /// Only metadata changed, lossless.
     Exif,
-    /// Pixel gedreht und neu kodiert.
+    /// Pixels rotated and re-encoded.
     Pixels,
-    /// RAW, HEIC & Co.: Drehung im XMP-Sidecar, die Datei bleibt unangetastet.
+    /// RAW, HEIC and the like: rotation goes in the XMP sidecar, the file stays untouched.
     Sidecar,
 }
 
-/// Dreht die Datei und zieht einen gemerkten Zuschnitt mit, sonst säße er
-/// danach an der falschen Stelle.
+/// Rotates the file and carries a remembered crop along, otherwise it would sit
+/// in the wrong place afterwards.
 pub fn rotate_file(path: &Path, rot: Rotation) -> Result<Method> {
     let method = rotate_pixels_or_tag(path, rot)?;
     sidecar::rotate_crop(path, rot)?;
@@ -64,7 +64,7 @@ fn rotate_pixels_or_tag(path: &Path, rot: Rotation) -> Result<Method> {
             sidecar::write_orientation(path, next)?;
             return Ok(Method::Sidecar);
         }
-        // HEIC, AVIF & Co.: über den registrierten Dreher (in der App: Sidecar, Ausrichtung per glycin).
+        // HEIC, AVIF and the like: through the registered rotator (in the app: sidecar, orientation via glycin).
         Some(Kind::Video) => return Err(CoreError::Unsupported(path.to_owned())),
         Some(Kind::Other) => {
             let f = FALLBACK
@@ -95,7 +95,7 @@ fn rotate_pixels_or_tag(path: &Path, rot: Rotation) -> Result<Method> {
     Ok(Method::Pixels)
 }
 
-/// `None`, wenn es zwar EXIF gibt, das Tag aber fehlt. Dann geht es über die Pixel.
+/// `None` if there is EXIF but the tag is missing. Then it goes through the pixels.
 fn rotate_jpeg_exif(original: &[u8], rot: Rotation) -> Option<Vec<u8>> {
     let mut jpeg = Jpeg::from_bytes(Bytes::copy_from_slice(original)).ok()?;
     let block = match jpeg.exif() {
@@ -142,7 +142,7 @@ mod tests {
         let img = load_oriented(&p).unwrap();
         assert_eq!((img.width(), img.height()), (4, 6));
 
-        // Die komprimierten Bilddaten sind unverändert.
+        // The compressed image data is unchanged.
         let after = Jpeg::from_bytes(Bytes::from(std::fs::read(&p).unwrap())).unwrap();
         let sos = |j: &Jpeg| {
             j.segments()
@@ -221,12 +221,12 @@ mod tests {
     fn raw_rotates_via_sidecar_only() {
         let dir = tempfile::tempdir().unwrap();
         let p = dir.path().join("a.CR3");
-        std::fs::write(&p, b"kein echtes raw").unwrap();
+        std::fs::write(&p, b"not a real raw").unwrap();
         assert_eq!(rotate_file(&p, Rotation::Right).unwrap(), Method::Sidecar);
         assert_eq!(crate::sidecar::read_orientation(&p), Some(6));
         assert_eq!(rotate_file(&p, Rotation::Right).unwrap(), Method::Sidecar);
         assert_eq!(crate::sidecar::read_orientation(&p), Some(3));
-        assert_eq!(std::fs::read(&p).unwrap(), b"kein echtes raw");
+        assert_eq!(std::fs::read(&p).unwrap(), b"not a real raw");
     }
 
     #[test]

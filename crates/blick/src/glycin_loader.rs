@@ -1,10 +1,10 @@
-//! glycin als Rückfall-Dekodierer für den Kern: HEIC, AVIF, JPEG XL, SVG, EXR
-//! und was die Laufzeit sonst an Loadern mitbringt.
+//! glycin as the fallback decoder for the core: HEIC, AVIF, JPEG XL, SVG, EXR
+//! and whatever else loaders the runtime brings along.
 //!
-//! glycin dekodiert in einem abgeschotteten Prozess. Eine kaputte oder
-//! bösartige Datei kann so höchstens den Loader abschießen, nicht Blick.
-//! Ohne installierte Loader (etwa auf dem Host) scheitert das Laden mit einer
-//! Meldung, und das Bild erscheint als defekt.
+//! glycin decodes in a sandboxed process. A broken or
+//! malicious file can at most kill the loader, not Blick.
+//! Without installed loaders (on the host, say) loading fails with a
+//! message and the picture shows up as broken.
 
 use std::path::Path;
 
@@ -23,18 +23,18 @@ fn err(path: &Path, e: impl std::fmt::Display) -> CoreError {
     }
 }
 
-/// Lädt das erste Bild der Datei als RGBA8, ausgerichtet und nach sRGB gewandelt.
-/// Wird aus Worker-Threads aufgerufen, nie aus dem UI-Thread oder der tokio-Runtime.
+/// Loads the first image of the file as RGBA8, oriented and converted to sRGB.
+/// Called from worker threads, never from the UI thread or the tokio runtime.
 pub fn load_blocking(path: &Path) -> Result<DynamicImage> {
     let file = gio::File::for_path(path);
     let frame = runtime::runtime()
         .block_on(async move {
             let mut loader = Loader::new(file);
             loader.accepted_memory_formats(MemoryFormatSelection::R8g8b8a8);
-            // Eigener glycin-Thread statt des GTK-Hauptloops: dort läuft keine
-            // tokio-Runtime, und der UI-Thread soll ohnehin frei bleiben.
+            // Own glycin thread instead of the GTK main loop: no tokio runtime
+            // runs there, and the UI thread should stay free anyway.
             loader.main_context_selector(MainContextSelector::Managed);
-            // Selbst ausrichten: Eine Drehung im Sidecar soll die der Datei ersetzen.
+            // Orient ourselves: a rotation in the sidecar should replace the file's own.
             loader.apply_transformations(false);
             let mut image = loader.load().await?;
             let orientation = image.transformation_orientation() as u16;
@@ -50,7 +50,7 @@ pub fn load_blocking(path: &Path) -> Result<DynamicImage> {
     for y in 0..h as usize {
         data.extend_from_slice(&src[y * stride..y * stride + row]);
     }
-    let img = RgbaImage::from_raw(w, h, data).ok_or_else(|| err(path, "Puffer zu klein"))?;
+    let img = RgbaImage::from_raw(w, h, data).ok_or_else(|| err(path, "buffer too small"))?;
     let mut img = DynamicImage::ImageRgba8(img);
     let o = blick_core::sidecar::read_orientation(path).unwrap_or(file_orientation);
     if let Some(o) = image::metadata::Orientation::from_exif(o as u8) {
@@ -59,7 +59,7 @@ pub fn load_blocking(path: &Path) -> Result<DynamicImage> {
     Ok(img)
 }
 
-/// Ausrichtung laut Datei, ohne die Pixel zu dekodieren.
+/// Orientation according to the file, without decoding the pixels.
 fn file_orientation(path: &Path) -> Result<u16> {
     let file = gio::File::for_path(path);
     runtime::runtime()
@@ -72,10 +72,9 @@ fn file_orientation(path: &Path) -> Result<u16> {
         .map_err(|e| err(path, e))
 }
 
-/// Dreht HEIC, AVIF, JPEG XL & Co. verlustfrei über das XMP-Sidecar, wie RAW.
-/// Neu kodieren hieße Qualität und EXIF verlieren: Der glycin-Creator der
-/// Laufzeit kann keine EXIF-Daten schreiben, und Handyfotos leben von ihrem
-/// Aufnahmedatum.
+/// Rotates HEIC, AVIF, JPEG XL and the like losslessly through the XMP sidecar, like RAW.
+/// Re-encoding would lose quality and EXIF: the runtime's glycin creator
+/// can't write EXIF data, and phone photos depend on their capture date.
 pub fn rotate_blocking(path: &Path, rot: Rotation) -> Result<()> {
     let current = match blick_core::sidecar::read_orientation(path) {
         Some(o) => o,

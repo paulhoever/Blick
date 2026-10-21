@@ -1,9 +1,9 @@
-//! Kamera-RAW über rawler.
+//! Camera RAW through rawler.
 //!
-//! Zum Ansehen reicht fast immer die JPEG-Vorschau, die die Kamera in die Datei
-//! legt: oft in voller Auflösung und in einem Bruchteil der Zeit einer echten
-//! Entwicklung. Entwickelt wird nur, wenn es keine Vorschau gibt oder für den
-//! Export in voller Qualität.
+//! For viewing, the JPEG preview the camera embeds in the file is almost always
+//! enough: often at full resolution and in a fraction of the time of a real
+//! develop. A full develop only happens when there is no preview or for
+//! export at full quality.
 
 use std::path::Path;
 
@@ -22,7 +22,7 @@ fn err(path: &Path, e: impl std::fmt::Display) -> CoreError {
     }
 }
 
-/// Drehung: erst der Sidecar (dort legt Blick sie ab), sonst EXIF der Kamera.
+/// Rotation: the sidecar first (where Blick stores it), otherwise the camera's EXIF.
 pub fn orientation(path: &Path) -> u16 {
     if let Some(o) = sidecar::read_orientation(path) {
         return o;
@@ -46,7 +46,7 @@ fn oriented(mut img: DynamicImage, o: u16) -> DynamicImage {
 }
 
 /// Eingebettete Vorschau, ausgerichtet. Kleine Vorschauen (unter `min_px`)
-/// werden übergangen und es wird entwickelt.
+/// are skipped and the file is developed.
 pub fn load_preview(path: &Path, min_px: u32) -> Result<DynamicImage> {
     let params = RawDecodeParams::default();
     let img = rawler::analyze::extract_preview_pixels(path, &params).map_err(|e| err(path, e))?;
@@ -62,10 +62,10 @@ fn develop_unoriented(path: &Path) -> Result<DynamicImage> {
     rawler::analyze::raw_to_srgb(path, &RawDecodeParams::default()).map_err(|e| err(path, e))
 }
 
-/// Volle Entwicklung (Demosaic, Weißabgleich der Kamera, sRGB), ausgerichtet.
-/// Tonwerte und Farbbalance werden an die eingebettete Kamera-Vorschau
-/// angeglichen, sonst wirkt die Entwicklung deutlich flacher als das, was die
-/// Kamera und jeder Betrachter zeigt.
+/// Full develop (demosaic, camera white balance, sRGB), oriented.
+/// Tones and color balance are matched to the embedded camera preview,
+/// otherwise the develop looks much flatter than what the camera and
+/// every viewer shows.
 pub fn develop(path: &Path) -> Result<DynamicImage> {
     let dev = develop_unoriented(path)?;
     let preview = rawler::analyze::extract_preview_pixels(path, &RawDecodeParams::default()).ok();
@@ -76,15 +76,15 @@ pub fn develop(path: &Path) -> Result<DynamicImage> {
     Ok(oriented(matched, orientation(path)))
 }
 
-/// Feinheit der Tonwert-Tabelle für 16-Bit-Eingaben.
+/// Resolution of the tone table for 16-bit input.
 const BINS: usize = 4096;
-/// Kantenlänge, auf die beide Bilder für den Vergleich verkleinert werden.
+/// Edge length both images are shrunk to for comparison.
 const SAMPLE_PX: u32 = 640;
 
-/// Histogramm-Abgleich pro Kanal: Jeder Wert der Entwicklung bekommt den Wert,
-/// der in der Vorschau am selben Perzentil liegt. Monoton, also ohne
-/// Tonwertsprünge. `None`, wenn die Bilder nicht dasselbe zeigen (anderes
-/// Seitenverhältnis, etwa bei beschnittener Vorschau).
+/// Per-channel histogram matching: each develop value gets the value
+/// at the same percentile in the preview. Monotonic, so no tone
+/// jumps. `None` if the images don't show the same thing (different
+/// aspect ratio, for example with a cropped preview).
 pub fn match_tones(dev: &DynamicImage, preview: &DynamicImage) -> Option<DynamicImage> {
     let ra = dev.width() as f32 / dev.height() as f32;
     let rb = preview.width() as f32 / preview.height() as f32;
@@ -107,8 +107,8 @@ pub fn match_tones(dev: &DynamicImage, preview: &DynamicImage) -> Option<Dynamic
             hp[px[c] as usize] += 1;
         }
         let (nd, np) = (d.pixels().len() as f64, p.pixels().len() as f64);
-        // Kumulierte Verteilung der Vorschau, dann für jedes Bin der Entwicklung
-        // den Vorschauwert am selben Perzentil (Mitte des Bins).
+        // Cumulative distribution of the preview, then for each develop bin
+        // the preview value at the same percentile (middle of the bin).
         let mut cp = [0f64; 256];
         let mut acc = 0.0;
         for (i, v) in hp.iter().enumerate() {
@@ -141,11 +141,11 @@ pub fn match_tones(dev: &DynamicImage, preview: &DynamicImage) -> Option<Dynamic
 mod tests {
     use super::*;
 
-    /// Echte RAWs sind zu groß fürs Repo. `BLICK_RAW_SAMPLES=<ordner>` zeigt auf
-    /// Muster von raw.pixls.us; ohne die Variable wird der Test übersprungen.
+    /// Real RAWs are too big for the repo. `BLICK_RAW_SAMPLES=<folder>` points to
+    /// samples from raw.pixls.us; without the variable the test is skipped.
     #[test]
     fn matching_pulls_dev_towards_preview() {
-        // „Entwicklung“ flach und grau, „Vorschau“ mit Kontrast und Farbstich.
+        // "Develop" flat and gray, "preview" with contrast and a color cast.
         let dev = DynamicImage::ImageRgb16(image::ImageBuffer::from_fn(64, 32, |x, _| {
             let v = (20000 + x * 300) as u16;
             image::Rgb([v, v, v])
@@ -157,8 +157,8 @@ mod tests {
         let m = match_tones(&dev, &prev).unwrap().to_rgb8();
         let (dark, bright) = (m.get_pixel(0, 0), m.get_pixel(63, 0));
         assert!(dark[0] < 30 && bright[0] > 200, "{dark:?} {bright:?}");
-        assert!(bright[2] < bright[0], "Farbstich übernommen");
-        // Anderes Seitenverhältnis: kein Abgleich.
+        assert!(bright[2] < bright[0], "color cast carried over");
+        // Different aspect ratio: no matching.
         assert!(match_tones(&dev, &DynamicImage::new_rgb8(32, 32)).is_none());
     }
 

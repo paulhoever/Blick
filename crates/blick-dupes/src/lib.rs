@@ -1,5 +1,5 @@
-//! Duplikatsuche für Blick, nach dem Vorbild von dupeGuru, aber mit Cache und
-//! Index statt Paarvergleich. Synchron, ohne GTK.
+//! Duplicate search for Blick, modeled on dupeGuru, but with a cache and
+//! an index instead of pairwise comparison. Synchronous, no GTK.
 
 pub mod error;
 #[cfg(feature = "gio")]

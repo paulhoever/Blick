@@ -2,13 +2,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Server-Adresse ungültig: {0}")]
+    #[error("Invalid server address: {0}")]
     BadUrl(String),
-    #[error("API-Schlüssel abgelehnt")]
+    #[error("API key rejected")]
     Unauthorized,
-    #[error("Server antwortet mit {status}: {message}")]
+    #[error("Server responded with {status}: {message}")]
     Api { status: u16, message: String },
-    #[error("Keine Verbindung zum Server: {0}")]
+    #[error("No connection to the server: {0}")]
     Http(#[from] reqwest::Error),
     #[error("Unerwartete Antwort: {0}")]
     Decode(#[from] serde_json::Error),

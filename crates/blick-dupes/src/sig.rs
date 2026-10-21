@@ -1,5 +1,5 @@
-//! Bildsignatur im Stil von dupeGuru („Picture blocks“): 15×15 Blöcke mit
-//! mittlerer Farbe. Dazu ein 64-Bit-Gradientenhash als Suchschlüssel.
+//! Image signature in the style of dupeGuru ("picture blocks"): 15×15 blocks with
+//! mean color. Plus a 64-bit gradient hash as a search key.
 
 use std::path::Path;
 
@@ -11,7 +11,7 @@ use crate::source::{Entry, Storage};
 
 pub const GRID: usize = 15;
 pub const GRID_LEN: usize = GRID * GRID * 3;
-/// Kantenlänge, auf die vor dem Mitteln verkleinert wird.
+/// Edge length images are shrunk to before averaging.
 const WORK_PX: u32 = 150;
 const BLOB_LEN: usize = 8 + GRID_LEN;
 
@@ -28,8 +28,8 @@ impl std::fmt::Debug for Sig {
     }
 }
 
-/// Zeilen und Spalten, die in den Hash eingehen: 8 Zeilen, 9 Spalten verteilt
-/// über das 15er-Raster, daraus 8×8 waagrechte Vergleiche.
+/// Rows and columns that go into the hash: 8 rows, 9 columns spread
+/// across the 15 grid, giving 8×8 horizontal comparisons.
 const ROWS: [usize; 8] = [0, 2, 4, 6, 8, 10, 12, 14];
 const COLS: [usize; 9] = [0, 2, 3, 5, 7, 9, 11, 12, 14];
 
@@ -61,17 +61,17 @@ impl Sig {
         (grid[i] as u32 * 299 + grid[i + 1] as u32 * 587 + grid[i + 2] as u32 * 114) / 1000
     }
 
-    /// Suchschlüssel: Helligkeit wächst nach rechts (1) oder nicht (0).
+    /// Search key: brightness grows to the right (1) or not (0).
     pub fn hash(&self) -> u64 {
         hash_grid(&self.grid)
     }
 
-    /// Um 90° im Uhrzeigersinn gedreht (Raster und Maße).
+    /// Rotated 90° clockwise (grid and dimensions).
     pub fn rotated(&self) -> Sig {
         let mut grid = [0u8; GRID_LEN];
         for y in 0..GRID {
             for x in 0..GRID {
-                // Zelle (x, y) landet bei (GRID-1-y, x)
+                // Cell (x, y) ends up at (GRID-1-y, x)
                 let src = (y * GRID + x) * 3;
                 let dst = (x * GRID + (GRID - 1 - y)) * 3;
                 grid[dst..dst + 3].copy_from_slice(&self.grid[src..src + 3]);
@@ -80,7 +80,7 @@ impl Sig {
         Sig { width: self.height, height: self.width, grid }
     }
 
-    /// Ähnlichkeit 0..=100: 100 minus mittlere Abweichung pro Farbwert.
+    /// Similarity 0..=100: 100 minus mean deviation per color value.
     pub fn similarity(&self, other: &Sig) -> f32 {
         let sum: u32 = self
             .grid
@@ -91,7 +91,7 @@ impl Sig {
         100.0 - sum as f32 * 100.0 / (GRID_LEN as f32 * 255.0)
     }
 
-    /// Seitenverhältnis weicht höchstens um `tol` (Bruchteil) ab.
+    /// Aspect ratio deviates by at most `tol` (a fraction).
     pub fn same_aspect(&self, other: &Sig, tol: f32) -> bool {
         let a = self.width as f32 / self.height.max(1) as f32;
         let b = other.width as f32 / other.height.max(1) as f32;
@@ -112,7 +112,7 @@ pub fn hash_grid(grid: &[u8; GRID_LEN]) -> u64 {
     h
 }
 
-/// Mittlere Farbe je Block. Randblöcke rechnen mit ganzen Pixeln, Blöcke sind nie leer.
+/// Mean color per block. Edge blocks count whole pixels, blocks are never empty.
 pub fn from_pixels(px: &Pixels, width: u32, height: u32) -> Sig {
     let (w, h) = (px.width as usize, px.height as usize);
     let mut grid = [0u8; GRID_LEN];
@@ -142,11 +142,11 @@ pub fn from_pixels(px: &Pixels, width: u32, height: u32) -> Sig {
     Sig { width, height, grid }
 }
 
-/// Signatur einer Datei aus beliebiger Quelle. Raster direkt aus den Bytes,
-/// RAW/HEIC & Co. über eine Temp-Datei (die Dekodierer wollen einen Pfad).
+/// Signature of a file from any source. Grid straight from the bytes,
+/// RAW/HEIC and the like through a temp file (the decoders want a path).
 pub fn compute(storage: &dyn Storage, e: &Entry) -> Result<Sig> {
     let path = Path::new(&e.uri);
-    let kind = kind_of(path).ok_or_else(|| DupeError::Other(format!("kein Bild: {}", e.uri)))?;
+    let kind = kind_of(path).ok_or_else(|| DupeError::Other(format!("not an image: {}", e.uri)))?;
     let bytes = storage.read_thumb(e)?;
     let (px, ow, oh) = match kind {
         Kind::Raster | Kind::Raw | Kind::Other if storage.thumbs_are_rasters() => {
@@ -169,7 +169,7 @@ pub fn compute(storage: &dyn Storage, e: &Entry) -> Result<Sig> {
             std::io::Write::write_all(&mut tmp, &bytes).map_err(|x| DupeError::io("temp", x))?;
             let small = decode::load_preview(tmp.path(), WORK_PX, WORK_PX)
                 .map_err(|x| DupeError::Other(format!("{}: {x}", e.uri)))?;
-            // Maße der Vorschau reichen für das Seitenverhältnis.
+            // Dimensions of the preview are enough for the aspect ratio.
             let (w, h) = (small.width, small.height);
             (small, w, h)
         }

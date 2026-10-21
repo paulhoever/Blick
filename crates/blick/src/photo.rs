@@ -1,7 +1,7 @@
-//! Ein Bild im Kontaktbogen, lokal oder aus Immich.
+//! A picture in the contact sheet, local or from Immich.
 //!
-//! Das Thumbnail hängt als Eigenschaft `texture` am Objekt. Kacheln binden
-//! sich daran; ist es geladen, aktualisieren sie sich von selbst.
+//! The thumbnail hangs on the object as the `texture` property. Tiles bind
+//! to it; once it's loaded they update by themselves.
 
 use std::cell::{Cell, OnceCell, RefCell};
 use std::path::{Path, PathBuf};
@@ -37,13 +37,13 @@ mod imp {
         pub texture: RefCell<Option<gdk::Texture>>,
         #[property(get)]
         pub title: RefCell<String>,
-        /// Laufende Nummer im Bogen, beginnt bei 1.
+        /// Running number in the sheet, starting at 1.
         #[property(get)]
         pub number: Cell<u32>,
         #[property(get, set)]
         pub broken: Cell<bool>,
         pub source: OnceCell<Source>,
-        /// Echtes Thumbnail da (nicht nur der Thumbhash-Platzhalter).
+        /// Real thumbnail present (not just the thumbhash placeholder).
         pub loaded: Cell<bool>,
         pub loading: Cell<bool>,
         pub cancel: RefCell<Option<Box<dyn FnOnce()>>>,
@@ -71,7 +71,7 @@ impl Photo {
         imp.number.set(number);
         imp.source
             .set(source)
-            .expect("Quelle wird genau einmal gesetzt");
+            .expect("source is set exactly once");
         obj
     }
 
@@ -105,7 +105,7 @@ impl Photo {
     }
 
     pub fn source(&self) -> &Source {
-        self.imp().source.get().expect("Quelle ist immer gesetzt")
+        self.imp().source.get().expect("source is always set")
     }
 
     pub fn path(&self) -> Option<&Path> {
@@ -129,7 +129,7 @@ impl Photo {
         }
     }
 
-    /// Startet das Laden des Thumbnails, falls nötig. Mehrfachaufrufe sind harmlos.
+    /// Starts loading the thumbnail if needed. Calling it repeatedly is harmless.
     pub fn ensure_thumbnail(&self, ctx: &Ctx) {
         let imp = self.imp();
         if imp.loaded.get() || imp.loading.get() {
@@ -158,7 +158,7 @@ impl Photo {
             #[weak(rename_to = photo)]
             self,
             async move {
-                // Ein geschlossener Kanal heißt: abgebrochen, später neu versuchen.
+                // A closed channel means cancelled, try again later.
                 let result = rx.recv().await;
                 photo.finish_loading(
                     result
@@ -210,21 +210,21 @@ impl Photo {
                 self.set_texture(Some(tex));
             }
             Some(Err(e)) => {
-                tracing::info!("Thumbnail für {}: {e:#}", self.title());
+                tracing::info!("thumbnail for {}: {e:#}", self.title());
                 imp.loaded.set(true);
                 self.set_broken(true);
             }
         }
     }
 
-    /// Kachel ist nicht mehr sichtbar: offenen Auftrag verwerfen.
+    /// Tile is no longer visible: drop the pending job.
     pub fn cancel_thumbnail(&self) {
         if let Some(cancel) = self.imp().cancel.take() {
             cancel();
         }
     }
 
-    /// Nach Änderungen an der Datei: altes Thumbnail behalten, bis das neue da ist.
+    /// After changes to the file: keep the old thumbnail until the new one arrives.
     pub fn reload(&self, ctx: &Ctx) {
         self.cancel_thumbnail();
         let imp = self.imp();
@@ -234,8 +234,8 @@ impl Photo {
     }
 }
 
-/// Immich liefert pro Bild einen Thumbhash (ca. 25 Byte). Daraus wird sofort
-/// ein unscharfer Platzhalter, noch bevor das Thumbnail übers Netz kommt.
+/// Immich delivers a thumbhash per picture (about 25 bytes). From it we build
+/// a blurry placeholder right away, before the thumbnail arrives over the network.
 fn thumbhash_texture(hash: &str) -> Option<gdk::Texture> {
     let raw = base64::engine::general_purpose::STANDARD
         .decode(hash)

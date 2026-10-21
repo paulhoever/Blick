@@ -1,4 +1,4 @@
-//! Bildinformationen für die Info-Leiste: Datei, Aufnahme, Kamera.
+//! Image information for the info bar: file, capture, camera.
 
 use std::path::Path;
 use std::time::SystemTime;
@@ -10,7 +10,7 @@ pub struct Info {
     pub file_size: u64,
     pub dimensions: Option<(u32, u32)>,
     pub modified: Option<SystemTime>,
-    /// So wie in EXIF, `JJJJ:MM:TT hh:mm:ss`.
+    /// As in EXIF, `YYYY:MM:DD hh:mm:ss`.
     pub taken: Option<String>,
     pub camera: Option<String>,
     pub lens: Option<String>,
@@ -21,23 +21,23 @@ pub struct Info {
 }
 
 impl Info {
-    /// Zeilen für die Anzeige, leere Felder fallen weg.
+    /// Rows for display, empty fields are dropped.
     pub fn rows(&self) -> Vec<(&'static str, String)> {
-        let mut v = vec![("Dateigröße", human_size(self.file_size))];
+        let mut v = vec![("File size", human_size(self.file_size))];
         if let Some((w, h)) = self.dimensions {
             v.push((
-                "Maße",
-                format!("{w} × {h} ({:.1} MP)", w as f64 * h as f64 / 1e6).replace('.', ","),
+                "Dimensions",
+                format!("{w} × {h} ({:.1} MP)", w as f64 * h as f64 / 1e6),
             ));
         }
         let opt = [
-            ("Aufnahme", self.taken.as_ref().map(|t| pretty_date(t))),
-            ("Kamera", self.camera.clone()),
-            ("Objektiv", self.lens.clone()),
-            ("Belichtung", self.exposure.clone()),
-            ("Blende", self.aperture.clone()),
+            ("Taken", self.taken.as_ref().map(|t| pretty_date(t))),
+            ("Camera", self.camera.clone()),
+            ("Lens", self.lens.clone()),
+            ("Exposure", self.exposure.clone()),
+            ("Aperture", self.aperture.clone()),
             ("ISO", self.iso.clone()),
-            ("Brennweite", self.focal_length.clone()),
+            ("Focal length", self.focal_length.clone()),
         ];
         v.extend(opt.into_iter().filter_map(|(k, val)| Some((k, val?))));
         v
@@ -46,17 +46,17 @@ impl Info {
 
 fn human_size(b: u64) -> String {
     match b {
-        b if b >= 1 << 20 => format!("{:.1} MB", b as f64 / (1 << 20) as f64).replace('.', ","),
+        b if b >= 1 << 20 => format!("{:.1} MB", b as f64 / (1 << 20) as f64),
         b if b >= 1 << 10 => format!("{} KB", b >> 10),
         b => format!("{b} B"),
     }
 }
 
-/// `2026:10:09 14:03:21` → `09.10.2026, 14:03`
+/// `2026:10:09 14:03:21` → `2026-10-09 14:03`
 fn pretty_date(s: &str) -> String {
     let b = s.as_bytes();
     if s.len() >= 16 && b[4] == b':' && b[7] == b':' {
-        format!("{}.{}.{}, {}", &s[8..10], &s[5..7], &s[0..4], &s[11..16])
+        format!("{}-{}-{} {}", &s[0..4], &s[5..7], &s[8..10], &s[11..16])
     } else {
         s.to_owned()
     }
@@ -64,7 +64,7 @@ fn pretty_date(s: &str) -> String {
 
 fn camera(make: Option<String>, model: Option<String>) -> Option<String> {
     match (make, model) {
-        // Viele Kameras wiederholen den Hersteller im Modellnamen.
+        // Many cameras repeat the maker in the model name.
         (Some(make), Some(model))
             if model.to_lowercase().starts_with(
                 &make
@@ -91,7 +91,7 @@ pub fn read(path: &Path) -> Info {
     };
     match kind_of(path) {
         Some(Kind::Raw) => read_raw(path, &mut info),
-        // Dauer und Maße liefert der Player, EXIF gibt es hier nicht.
+        // The player supplies duration and dimensions, there's no EXIF here.
         Some(Kind::Video) => {}
         _ => {
             info.dimensions = image::ImageReader::open(path)
@@ -188,8 +188,8 @@ mod tests {
 
     #[test]
     fn formats_values() {
-        assert_eq!(pretty_date("2026:10:09 14:03:21"), "09.10.2026, 14:03");
-        assert_eq!(human_size(3 * 1024 * 1024 / 2), "1,5 MB");
+        assert_eq!(pretty_date("2026:10:09 14:03:21"), "2026-10-09 14:03");
+        assert_eq!(human_size(3 * 1024 * 1024 / 2), "1.5 MB");
         assert_eq!(
             camera(Some("NIKON CORPORATION".into()), Some("NIKON Z 6".into())).as_deref(),
             Some("NIKON Z 6")

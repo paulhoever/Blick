@@ -1,10 +1,10 @@
-//! Bildfläche mit Zoom und Verschieben.
+//! Canvas with zoom and pan.
 //!
-//! Eingepasst füllt das Bild die Fläche. Gezoomt bekommt es eine feste Größe in
-//! einem ScrolledWindow. Zoomstufe 1.0 heißt: ein Bildpixel auf ein
-//! Gerätepixel. Sobald über die Einpassung hinaus gezoomt wird, fordert die
-//! Fläche einmal das Bild in voller Auflösung an (`connect_need_full`), bis
-//! dahin wird die Vorschau hochskaliert.
+//! Fitted, the image fills the canvas. Zoomed, it gets a fixed size inside
+//! a ScrolledWindow. Zoom level 1.0 means one image pixel per
+//! device pixel. As soon as the zoom goes beyond fit, the canvas
+//! requests the full-resolution image once (`connect_need_full`); until
+//! then the preview is scaled up.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -22,16 +22,16 @@ pub struct ZoomView {
     picture: gtk::Picture,
     /// `None` = eingepasst.
     zoom: Cell<Option<f64>>,
-    /// Größe des Originals in Bildpixeln, nach Drehung.
+    /// Size of the original in image pixels, after rotation.
     natural: Cell<(f64, f64)>,
     pointer: Cell<(f64, f64)>,
-    /// Zeiger steht gerade über der Fläche (nicht über den Zoomknöpfen).
+    /// Pointer is over the canvas right now (not over the zoom buttons).
     hover: Cell<bool>,
     pinch_start: Cell<f64>,
     drag_start: Cell<(f64, f64)>,
     full_requested: Cell<bool>,
-    /// Bild für die eingepasste Ansicht (Bildschirmgröße) und, falls geladen,
-    /// das Original für den Zoom. Eingepasst wird nie das Original gezeichnet.
+    /// Image for the fitted view (screen size) and, if loaded,
+    /// the original for zooming. When fitted, the original is never drawn.
     fit_tex: RefCell<Option<gdk::Texture>>,
     full_tex: RefCell<Option<gdk::Texture>>,
     need_full: RefCell<Option<Box<dyn Fn()>>>,
@@ -74,7 +74,7 @@ impl ZoomView {
         self.need_full.replace(Some(Box::new(f)));
     }
 
-    /// `true`, wenn gezoomt ist. Die Einzelansicht blendet dann die Pfeile aus.
+    /// `true` when zoomed. The single view then hides the arrows.
     pub fn connect_zoom_changed(&self, f: impl Fn(bool) + 'static) {
         self.zoom_changed.replace(Some(Box::new(f)));
     }
@@ -83,7 +83,7 @@ impl ZoomView {
         &self.picture
     }
 
-    /// Neues Bild: zurück auf Einpassen.
+    /// New image: back to fit.
     pub fn show(&self, paintable: Option<&gdk::Texture>, natural: Option<(u32, u32)>) {
         self.fit_tex.replace(paintable.cloned());
         self.full_tex.replace(None);
@@ -96,9 +96,9 @@ impl ZoomView {
         self.fit();
     }
 
-    /// Nur das Bild tauschen (Bearbeitung), Größe und Zoom bleiben.
-    /// Die bearbeitete Fassung gibt es nur in Bildschirmgröße; sie ersetzt
-    /// auch beim Zoomen das Original, damit man sieht, was man bearbeitet.
+    /// Swap only the image (editing), size and zoom stay.
+    /// The edited version only exists at screen size; it replaces
+    /// the original even when zooming, so you see what you're editing.
     pub fn replace(&self, paintable: Option<&gdk::Texture>) {
         self.fit_tex.replace(paintable.cloned());
         self.full_tex.replace(None);
@@ -116,16 +116,16 @@ impl ZoomView {
         }
     }
 
-    /// Originalmaße, sobald bekannt. Die Zoomstufe bezieht sich darauf.
+    /// Original dimensions, once known. The zoom level refers to them.
     pub fn set_natural(&self, w: u32, h: u32) {
         if !self.is_zoomed() {
             self.natural.set((w as f64, h as f64));
         }
     }
 
-    /// Schärferes Bild desselben Motivs (Vorschau, dann volle Auflösung).
-    /// Die Bezugsgröße wächst nur: eine Vorschau ist kleiner als das Original
-    /// und darf die Zoomstufe nicht verfälschen.
+    /// Sharper image of the same subject (preview, then full resolution).
+    /// The reference size only grows: a preview is smaller than the original
+    /// and must not distort the zoom level.
     pub fn upgrade(&self, texture: &gdk::Texture) {
         let (ow, _) = self.natural.get();
         let (nw, nh) = (texture.width() as f64, texture.height() as f64);
@@ -137,7 +137,7 @@ impl ZoomView {
             }
             self.natural.set((nw, nh));
         }
-        // Größer als die Bildfläche: Original für den Zoom. Sonst Vorschau.
+        // Larger than the canvas: original for zooming. Otherwise the preview.
         let screen = self.widget.width().max(self.widget.height()) as f64 * self.scale_factor();
         if nw.max(nh) > screen * 1.5 {
             self.full_tex.replace(Some(texture.clone()));
@@ -155,7 +155,7 @@ impl ZoomView {
         self.widget.scale_factor().max(1) as f64
     }
 
-    /// Zoomstufe, bei der das Bild gerade in die Fläche passt.
+    /// Zoom level at which the image just fits the canvas.
     fn fit_zoom(&self) -> f64 {
         let (w, h) = self.natural.get();
         let (vw, vh) = (self.widget.width() as f64, self.widget.height() as f64);
@@ -184,8 +184,8 @@ impl ZoomView {
         self.zoom.get().unwrap_or_else(|| self.fit_zoom())
     }
 
-    /// Zoomanker für Tasten und Knöpfe: der Zeiger, solange er über dem Bild
-    /// steht, sonst die Mitte.
+    /// Zoom anchor for keys and buttons: the pointer while it is over
+    /// the image, otherwise the center.
     fn anchor(&self) -> (f64, f64) {
         if self.hover.get() {
             self.pointer.get()
@@ -206,7 +206,7 @@ impl ZoomView {
         self.set_zoom(1.0, self.anchor());
     }
 
-    /// Zoomt so, dass der Bildpunkt unter `anchor` (Koordinaten der Fläche) stehen bleibt.
+    /// Zooms so the image point under `anchor` (canvas coordinates) stays put.
     pub fn set_zoom(&self, z: f64, anchor: (f64, f64)) {
         let fit = self.fit_zoom();
         let (nw, nh) = self.natural.get();
@@ -218,14 +218,14 @@ impl ZoomView {
         let sf = self.scale_factor();
         let (hadj, vadj) = (self.widget.hadjustment(), self.widget.vadjustment());
 
-        // Relative Lage des Ankers im Bild, vor der Änderung.
+        // Relative position of the anchor in the image, before the change.
         let old = self.current();
         let (old_w, old_h) = (nw * old / sf, nh * old / sf);
         let (vw, vh) = (self.widget.width() as f64, self.widget.height() as f64);
         let (ox, oy) = if self.is_zoomed() {
             (hadj.value(), vadj.value())
         } else {
-            // Eingepasst ist das Bild zentriert.
+            // When fitted the image is centered.
             (-(vw - old_w) / 2.0, -(vh - old_h) / 2.0)
         };
         let rx = ((ox + anchor.0) / old_w).clamp(0.0, 1.0);
@@ -239,10 +239,10 @@ impl ZoomView {
         self.picture
             .set_size_request(new_w.round() as i32, new_h.round() as i32);
 
-        // Die neuen Grenzen der Scrollbalken stehen erst nach dem Layout fest.
+        // The new scrollbar bounds are only known after layout.
         let (ax, ay) = anchor;
-        // Ein Tick-Callback läuft vor dem Layout, also so lange warten, bis die
-        // Grenzen gewachsen sind (höchstens ein paar Frames).
+        // A tick callback runs before layout, so wait until the
+        // bounds have grown (a few frames at most).
         let tries = Cell::new(0);
         self.widget.add_tick_callback(move |_, _| {
             tries.set(tries.get() + 1);
@@ -285,7 +285,7 @@ impl ZoomView {
         ));
         self.widget.add_controller(motion);
 
-        // Strg + Mausrad zoomt, das Rad allein scrollt bzw. blättert (Einzelansicht).
+        // Ctrl + mouse wheel zooms, the wheel alone scrolls or pages (single view).
         let scroll = gtk::EventControllerScroll::new(gtk::EventControllerScrollFlags::VERTICAL);
         scroll.set_propagation_phase(gtk::PropagationPhase::Capture);
         scroll.connect_scroll(glib::clone!(
@@ -323,7 +323,7 @@ impl ZoomView {
         ));
         self.widget.add_controller(pinch);
 
-        // Doppelklick: zwischen Einpassen und 100 % wechseln, am Klickpunkt.
+        // Double-click: toggle between fit and 100%, at the click point.
         let click = gtk::GestureClick::new();
         click.connect_pressed(glib::clone!(
             #[weak(rename_to = this)]
@@ -340,7 +340,7 @@ impl ZoomView {
         ));
         self.widget.add_controller(click);
 
-        // Ziehen verschiebt, wenn gezoomt.
+        // Dragging pans when zoomed.
         let drag = gtk::GestureDrag::new();
         drag.connect_drag_begin(glib::clone!(
             #[weak(rename_to = this)]

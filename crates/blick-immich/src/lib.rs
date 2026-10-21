@@ -1,5 +1,5 @@
-//! Immich-Client für Blick. Spricht die REST-API ab Immich 2.x/3.x
-//! (geprüft gegen die `spec.json` von 3.3.1) und meldet sich per API-Schlüssel an.
+//! Immich client for Blick. Talks to the REST API of Immich 2.x/3.x
+//! (checked against the `spec.json` of 3.3.1) and signs in with an API key.
 
 mod client;
 mod error;

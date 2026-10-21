@@ -1,4 +1,4 @@
-//! `.cube`-Dateien (Adobe/Resolve-Format) für 3D- und 1D-LUTs.
+//! `.cube` files (Adobe/Resolve format) for 3D and 1D LUTs.
 
 use super::lut::Lut3d;
 
@@ -20,7 +20,7 @@ pub fn parse(text: &str) -> Result<Cube, String> {
         if parts.len() < 3 {
             return Err(format!("drei Zahlen erwartet: {}", parts.join(" ")));
         }
-        let p = |s: &str| s.parse::<f32>().map_err(|_| format!("keine Zahl: {s}"));
+        let p = |s: &str| s.parse::<f32>().map_err(|_| format!("not a number: {s}"));
         Ok([p(parts[0])?, p(parts[1])?, p(parts[2])?])
     };
 
@@ -38,7 +38,7 @@ pub fn parse(text: &str) -> Result<Cube, String> {
                     parts
                         .get(1)
                         .and_then(|s| s.parse::<usize>().ok())
-                        .ok_or_else(|| err("Größe fehlt".into()))?,
+                        .ok_or_else(|| err("size missing".into()))?,
                 )
             }
             "LUT_1D_SIZE" => {
@@ -46,12 +46,12 @@ pub fn parse(text: &str) -> Result<Cube, String> {
                     parts
                         .get(1)
                         .and_then(|s| s.parse::<usize>().ok())
-                        .ok_or_else(|| err("Größe fehlt".into()))?,
+                        .ok_or_else(|| err("size missing".into()))?,
                 )
             }
             "DOMAIN_MIN" => min = triple(&parts[1..]).map_err(err)?,
             "DOMAIN_MAX" => max = triple(&parts[1..]).map_err(err)?,
-            // Weitere Schlüsselwörter (LUT_3D_INPUT_RANGE u. a.) sind hier bedeutungslos.
+            // Other keywords (LUT_3D_INPUT_RANGE and so on) don't matter here.
             k if k.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) => {}
             _ => rows.push(triple(&parts).map_err(err)?),
         }
@@ -91,7 +91,7 @@ pub fn parse(text: &str) -> Result<Cube, String> {
             };
             Lut3d::from_fn(33, |c| [curve(0, c[0]), curve(1, c[1]), curve(2, c[2])])
         }
-        (None, None) => return Err("weder LUT_3D_SIZE noch LUT_1D_SIZE".into()),
+        (None, None) => return Err("neither LUT_3D_SIZE nor LUT_1D_SIZE".into()),
     };
     Ok(Cube { title, lut })
 }

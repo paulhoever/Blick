@@ -4,7 +4,7 @@ members = ["crates/blick-core", "crates/blick-immich", "crates/blick-dupes", "cr
 default-members = ["crates/blick"]
 
 [workspace.package]
-version = "0.9.2"
+version = "0.9.2-a"
 edition = "2024"
 license = "GPL-3.0-or-later"
 rust-version = "1.85"
@@ -30,6 +30,6 @@ lto = "thin"
 codegen-units = 1
 strip = true
 
-# Bilddekodierung ist auch im Debug-Build sonst unerträglich langsam.
+# Image decoding is unbearably slow even in the debug build otherwise.
 [profile.dev.package."*"]
 opt-level = 2

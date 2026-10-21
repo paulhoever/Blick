@@ -1,4 +1,4 @@
-//! Der Kontaktbogen: Raster aller Bilder eines Ordners oder Immich-Albums.
+//! The contact sheet: a grid of all pictures in a folder or Immich album.
 
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
@@ -19,7 +19,7 @@ use crate::tile::Tile;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Origin {
     Folder(PathBuf),
-    /// `id: None` ist die ganze Immich-Zeitleiste.
+    /// `id: None` is the whole Immich timeline.
     Immich {
         id: Option<String>,
         name: String,
@@ -30,10 +30,10 @@ type Callback<T> = Box<dyn Fn(T)>;
 
 pub struct Sheet {
     pub page: adw::NavigationPage,
-    /// „Mit Unterordnern“: der Bogen zeigt den ganzen Baum. Das Fenster bindet
-    /// den Schalter an GSettings.
+    /// "Include subfolders": the sheet shows the whole tree. The window binds
+    /// the switch to GSettings.
     pub subfolders: gtk::ToggleButton,
-    /// Beschriftete Knöpfe der Auswahlleiste, für den schmalen Breakpoint.
+    /// Labeled buttons of the selection bar, for the narrow breakpoint.
     pub labeled_buttons: [adw::ButtonContent; 2],
     scan_cancel: RefCell<Arc<AtomicBool>>,
     grid: gtk::GridView,
@@ -51,19 +51,19 @@ pub struct Sheet {
     progress: gtk::ProgressBar,
     cancel: RefCell<Option<Arc<AtomicBool>>>,
     origin: RefCell<Option<Origin>>,
-    /// Zählt bei jedem Wechsel hoch; späte Ergebnisse alter Ordner werden verworfen.
+    /// Counts up on every switch; late results from old folders are discarded.
     generation: Cell<u64>,
     pending_buckets: RefCell<VecDeque<TimeBucket>>,
     loading_more: Cell<bool>,
-    /// Alle Monate der Zeitleiste, neueste zuerst; dazu, ab welcher Stelle im
-    /// Bogen jeder schon geladene Monat beginnt (gleicher Index).
+    /// All months of the timeline, newest first; plus the sheet position
+    /// where each already loaded month starts (same index).
     buckets: RefCell<Vec<TimeBucket>>,
     bucket_starts: RefCell<Vec<u32>>,
-    /// Sprungziel aus der Monatsliste, solange die Monate davor noch laden.
+    /// Jump target from the month list while the months before it are still loading.
     jump_target: Cell<Option<usize>>,
     jump: gtk::MenuButton,
     jump_list: gtk::ListBox,
-    /// Monat zu jeder Zeile der Sprungliste; Jahresüberschriften haben keinen.
+    /// Month for each row of the jump list; year headings have none.
     jump_rows: RefCell<Vec<Option<usize>>>,
     month_label: gtk::Label,
     month_reveal: gtk::Revealer,
@@ -74,38 +74,38 @@ pub struct Sheet {
     monitors: RefCell<Vec<gio::FileMonitor>>,
     refresh_pending: Cell<bool>,
     rewatch: Cell<bool>,
-    /// Pfade, deren Inhalt sich laut Monitor geändert hat; beim nächsten Abgleich neu laden.
+    /// Paths whose contents changed according to the monitor; reload at the next sync.
     changed: RefCell<Vec<PathBuf>>,
 }
 
-const MONATE: [&str; 12] = [
-    "Januar",
-    "Februar",
-    "März",
+const MONTHS: [&str; 12] = [
+    "January",
+    "February",
+    "March",
     "April",
-    "Mai",
-    "Juni",
-    "Juli",
+    "May",
+    "June",
+    "July",
     "August",
     "September",
-    "Oktober",
+    "October",
     "November",
-    "Dezember",
+    "December",
 ];
 
-/// „Oktober 2026“; ohne lesbares Datum der Rohwert.
+/// "October 2026"; the raw value if the date isn't readable.
 fn month_title(b: &TimeBucket) -> String {
     match b.year_month() {
-        Some((y, m)) => format!("{} {y}", MONATE[m as usize - 1]),
+        Some((y, m)) => format!("{} {y}", MONTHS[m as usize - 1]),
         None => b.time_bucket.clone(),
     }
 }
 
-pub fn bilder(n: usize) -> String {
+pub fn picture_count(n: usize) -> String {
     if n == 1 {
-        "1 Bild".into()
+        "1 picture".into()
     } else {
-        format!("{n} Bilder")
+        format!("{n} pictures")
     }
 }
 
@@ -164,8 +164,8 @@ impl Sheet {
             .valign(gtk::Align::Center)
             .build();
 
-        // Beim Scrollen durch Immich zeigt ein Schild oben, welcher Monat gerade
-        // zu sehen ist, wie in Immich und GNOME Fotos.
+        // While scrolling through Immich a badge at the top shows which month is
+        // visible, as in Immich and GNOME Photos.
         let month_label = gtk::Label::builder()
             .css_classes(["osd", "monthpill", "heading"])
             .build();
@@ -182,8 +182,8 @@ impl Sheet {
         overlay.add_overlay(&month_reveal);
 
         let menu = gio::Menu::new();
-        menu.append(Some("Herunterladen …"), Some("win.download"));
-        menu.append(Some("Freigabelink kopieren"), Some("win.share-link"));
+        menu.append(Some("Download …"), Some("win.download"));
+        menu.append(Some("Copy share link"), Some("win.share-link"));
         let context_menu = gtk::PopoverMenu::from_model(Some(&menu));
         context_menu.set_has_arrow(false);
         context_menu.set_halign(gtk::Align::Start);
@@ -200,34 +200,34 @@ impl Sheet {
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         let rotate_left = gtk::Button::builder()
             .icon_name("object-rotate-left-symbolic")
-            .tooltip_text("Nach links drehen (Strg+Umschalt+R)")
+            .tooltip_text("Rotate left (Ctrl+Shift+R)")
             .action_name("win.rotate-left")
             .build();
         let rotate_right = gtk::Button::builder()
             .icon_name("object-rotate-right-symbolic")
-            .tooltip_text("Nach rechts drehen (Strg+R)")
+            .tooltip_text("Rotate right (Ctrl+R)")
             .action_name("win.rotate-right")
             .build();
-        // Knöpfe mit Symbol und Text wie die Auswahlleiste im Mockup von GNOME
-        // Fotos. Wird das Fenster schmal, blendet ein Breakpoint die Texte aus.
+        // Buttons with icon and text like the selection bar in the GNOME
+        // Photos mockup. When the window gets narrow, a breakpoint hides the text.
         let upload_content = adw::ButtonContent::builder()
             .icon_name("send-to-symbolic")
-            .label("Zu Immich hochladen")
+            .label("Upload to Immich")
             .can_shrink(true)
             .build();
         let upload = gtk::Button::builder()
             .child(&upload_content)
-            .tooltip_text("Zu Immich hochladen (Strg+U)")
+            .tooltip_text("Upload to Immich (Ctrl+U)")
             .action_name("win.upload")
             .build();
         let look_content = adw::ButtonContent::builder()
             .icon_name("preferences-color-symbolic")
-            .label("Stil anwenden …")
+            .label("Apply look …")
             .can_shrink(true)
             .build();
         let apply_look = gtk::Button::builder()
             .child(&look_content)
-            .tooltip_text("Erzeugt Kopien im gewählten Stil")
+            .tooltip_text("Creates copies in the chosen look")
             .action_name("win.apply-look")
             .build();
         for b in [&upload, &apply_look] {
@@ -245,7 +245,7 @@ impl Sheet {
             .hexpand(true)
             .show_text(true)
             .build();
-        let cancel_btn = gtk::Button::with_label("Abbrechen");
+        let cancel_btn = gtk::Button::with_label("Cancel");
         let busy = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         busy.set_hexpand(true);
         busy.append(&progress);
@@ -263,11 +263,11 @@ impl Sheet {
         header.set_title_widget(Some(&title));
         let subfolders = gtk::ToggleButton::builder()
             .icon_name("folder-symbolic")
-            .tooltip_text("Mit Unterordnern")
+            .tooltip_text("Include subfolders")
             .active(true)
             .build();
         subfolders.update_property(&[gtk::accessible::Property::Label(
-            "Bilder aus Unterordnern zeigen",
+            "Show pictures from subfolders",
         )]);
         header.pack_end(&subfolders);
         let jump_list = gtk::ListBox::builder()
@@ -284,11 +284,11 @@ impl Sheet {
         let jump_popover = gtk::Popover::builder().child(&jump_scroll).build();
         let jump = gtk::MenuButton::builder()
             .icon_name("x-office-calendar-symbolic")
-            .tooltip_text("Zu Monat springen")
+            .tooltip_text("Jump to month")
             .popover(&jump_popover)
             .visible(false)
             .build();
-        jump.update_property(&[gtk::accessible::Property::Label("Zu Monat springen")]);
+        jump.update_property(&[gtk::accessible::Property::Label("Jump to month")]);
         header.pack_end(&jump);
 
         let view = adw::ToolbarView::new();
@@ -297,7 +297,7 @@ impl Sheet {
         view.add_bottom_bar(&bar);
 
         let page = adw::NavigationPage::builder()
-            .title("Kontaktbogen")
+            .title("Contact sheet")
             .tag("sheet")
             .child(&view)
             .build();
@@ -362,8 +362,8 @@ impl Sheet {
             }
         ));
 
-        // Leertaste öffnet das Bild unter dem Fokus, wie ein Schnellblick.
-        // Capture, weil die GridView die Leertaste sonst für die Auswahl nimmt.
+        // Space opens the picture under the focus, like a quick look.
+        // Capture, because the GridView would otherwise take space for selection.
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         keys.connect_key_pressed(glib::clone!(
@@ -408,7 +408,7 @@ impl Sheet {
                 }
             }
         ));
-        // Immich-Alben kommen monatsweise; kurz vor dem Ende den nächsten Monat holen.
+        // Immich albums arrive month by month; fetch the next month shortly before the end.
         this.scroller
             .vadjustment()
             .connect_value_changed(glib::clone!(
@@ -422,8 +422,8 @@ impl Sheet {
                 }
             ));
 
-        // Rechtsklick (oder langes Drücken) auf ein Bild: Menü für Immich-Bilder.
-        // Capture, weil die Listeneinträge Klicks sonst selbst nehmen.
+        // Right click (or long press) on a picture: menu for Immich pictures.
+        // Capture, because the list items would otherwise take the clicks themselves.
         let right = gtk::GestureClick::builder()
             .button(3)
             .propagation_phase(gtk::PropagationPhase::Capture)
@@ -467,7 +467,7 @@ impl Sheet {
         this
     }
 
-    /// Bogenposition des Bildes unter dem Punkt (Koordinaten der GridView).
+    /// Sheet position of the picture under the point (GridView coordinates).
     fn position_at(&self, x: f64, y: f64) -> Option<u32> {
         self.grid
             .pick(x, y, gtk::PickFlags::DEFAULT)?
@@ -477,8 +477,8 @@ impl Sheet {
             .filter(|&p| p < self.store.n_items())
     }
 
-    /// Menü an der Stelle öffnen. Ein Bild außerhalb der Auswahl wird zur
-    /// alleinigen Auswahl, wie in Nautilus.
+    /// Open the menu at the spot. A picture outside the selection becomes the
+    /// only selection, as in Nautilus.
     fn popup_menu(&self, x: f64, y: f64) -> bool {
         if !matches!(self.origin(), Some(Origin::Immich { .. })) {
             return false;
@@ -507,22 +507,22 @@ impl Sheet {
         true
     }
 
-    /// Index des Monats, in dem die Bogenposition liegt.
+    /// Index of the month the sheet position falls in.
     fn bucket_of(&self, pos: u32) -> Option<usize> {
         let starts = self.bucket_starts.borrow();
         starts.partition_point(|&s| s <= pos).checked_sub(1)
     }
 
-    /// Monatsschild für die oberste sichtbare Reihe; blendet sich nach einer
-    /// Pause wieder aus.
+    /// Month badge for the topmost visible row; fades out again
+    /// after a pause.
     fn show_month(self: &Rc<Self>) {
         if self.buckets.borrow().is_empty() {
             return;
         }
         let w = self.grid.width() as f64;
-        // Von rechts: Beginnt ein Monat mitten in der Reihe, gehört das rechte
-        // Bild zu dem Monat, der darunter weitergeht. Mehrere Punkte, falls einer
-        // in eine Lücke fällt.
+        // From the right: if a month starts in the middle of the row, the right
+        // picture belongs to the month that continues below. Several points, in case one
+        // lands in a gap.
         let pos = [0.9, 0.7, 0.5, 0.3, 0.1]
             .iter()
             .find_map(|f| self.position_at(w * f, 24.0));
@@ -551,7 +551,7 @@ impl Sheet {
         self.month_hide.replace(Some(id));
     }
 
-    /// Monatsliste im Sprungmenü: Jahre als Überschrift, darunter die Monate.
+    /// Month list in the jump menu: years as headings, months below.
     fn fill_jump_list(self: &Rc<Self>) {
         self.jump_list.remove_all();
         let mut rows = Vec::new();
@@ -562,7 +562,7 @@ impl Sheet {
                 year = Some(y);
                 let label = gtk::Label::builder()
                     .label(if y == 0 {
-                        "Ohne Datum".to_owned()
+                        "No date".to_owned()
                     } else {
                         y.to_string()
                     })
@@ -582,7 +582,7 @@ impl Sheet {
                 .label(if m == 0 {
                     b.time_bucket.as_str()
                 } else {
-                    MONATE[m as usize - 1]
+                    MONTHS[m as usize - 1]
                 })
                 .xalign(0.0)
                 .hexpand(true)
@@ -601,7 +601,7 @@ impl Sheet {
         self.jump_rows.replace(rows);
     }
 
-    /// Zum Monat springen. Fehlt er noch, laden erst die Monate davor.
+    /// Jump to the month. If it's missing, the months before it load first.
     fn jump_to_bucket(self: &Rc<Self>, i: usize) {
         let start = self.bucket_starts.borrow().get(i).copied();
         match start {
@@ -610,15 +610,15 @@ impl Sheet {
                 self.jump_target.set(Some(i));
                 if let Some(b) = self.buckets.borrow().get(i) {
                     self.title
-                        .set_subtitle(&format!("Lade bis {} …", month_title(b)));
+                        .set_subtitle(&format!("Loading up to {} …", month_title(b)));
                 }
                 self.load_next_bucket();
             }
         }
     }
 
-    /// Bild an den oberen Rand holen. `scroll_to` bewegt nur so weit, bis es
-    /// sichtbar ist (beim Abwärtsspringen also unten), danach wird nachgeschoben.
+    /// Bring the picture to the top edge. `scroll_to` only moves until it is
+    /// visible (so at the bottom when jumping down), then it is nudged further.
     fn scroll_to_top(self: &Rc<Self>, pos: u32) {
         self.grid.scroll_to(pos, gtk::ListScrollFlags::NONE, None);
         glib::timeout_add_local_once(
@@ -646,7 +646,7 @@ impl Sheet {
         );
     }
 
-    /// Zurück aus der Einzelansicht: Fokus und Auswahl auf das zuletzt gezeigte Bild.
+    /// Back from the single view: focus and selection go to the picture shown last.
     pub fn focus_item(&self, pos: u32) {
         if pos < self.store.n_items() {
             self.grid.scroll_to(
@@ -686,7 +686,7 @@ impl Sheet {
             self.count.set_label(&if n == 0 {
                 String::new()
             } else {
-                format!("{} ausgewählt", bilder(n))
+                format!("{} selected", picture_count(n))
             });
             self.bar.set_revealed(n > 0);
         }
@@ -713,9 +713,9 @@ impl Sheet {
         g
     }
 
-    /// Ordner beobachten: neue, gelöschte und geänderte Dateien erscheinen ohne Neuladen.
-    /// Höchstens so viele Ordner beobachten; inotify hat ein Limit pro Nutzer,
-    /// und das teilen sich alle Programme.
+    /// Watch the folder: new, deleted and changed files appear without reloading.
+    /// Watch at most this many folders; inotify has a per-user limit
+    /// and all programs share it.
     const MAX_WATCHED: usize = 1000;
 
     fn unwatch(&self) {
@@ -724,8 +724,8 @@ impl Sheet {
         }
     }
 
-    /// Ordner beobachten, mit Unterordnern auch den ganzen Baum: neue,
-    /// gelöschte und geänderte Dateien erscheinen ohne Neuladen.
+    /// Watch the folder, with subfolders the whole tree: new,
+    /// deleted and changed files appear without reloading.
     fn watch(self: &Rc<Self>, dir: &Path) {
         self.unwatch();
         let generation = self.generation.get();
@@ -761,7 +761,7 @@ impl Sheet {
             self,
             move |_, file, _, event| {
                 let Some(path) = file.path() else { return };
-                // Neuer Unterordner: Baum neu beobachten, sobald abgeglichen wird.
+                // New subfolder: watch the tree again at the next sync.
                 let new_dir = event == gio::FileMonitorEvent::Created && path.is_dir();
                 if !new_dir && !blick_core::library::is_supported(&path) {
                     return;
@@ -782,7 +782,7 @@ impl Sheet {
         if self.refresh_pending.replace(true) {
             return;
         }
-        // Kopiervorgänge erzeugen Dutzende Ereignisse; gesammelt abgleichen.
+        // Copy operations create dozens of events; sync in batches.
         glib::timeout_add_local_once(
             std::time::Duration::from_millis(400),
             glib::clone!(
@@ -796,8 +796,8 @@ impl Sheet {
         );
     }
 
-    /// Ordner neu lesen und mit dem Bogen abgleichen. Vorhandene Einträge bleiben
-    /// erhalten (samt Thumbnail und Auswahl), nur Neues und Gelöschtes ändert sich.
+    /// Re-read the folder and reconcile it with the sheet. Existing entries stay
+    /// (with thumbnail and selection), only new and deleted ones change.
     pub fn refresh(self: &Rc<Self>) {
         let Some(Origin::Folder(dir)) = self.origin() else {
             return;
@@ -849,7 +849,7 @@ impl Sheet {
         ));
     }
 
-    /// Einträge sofort entfernen (nach dem Löschen), ohne auf den Monitor zu warten.
+    /// Remove entries immediately (after deleting), without waiting for the monitor.
     pub fn remove_paths(&self, paths: &[PathBuf]) {
         for i in (0..self.store.n_items()).rev() {
             if let Some(p) = self.store.item(i).and_downcast::<Photo>()
@@ -863,7 +863,7 @@ impl Sheet {
             p.set_number(i as u32 + 1);
         }
         self.title
-            .set_subtitle(&bilder(self.store.n_items() as usize));
+            .set_subtitle(&picture_count(self.store.n_items() as usize));
     }
 
     fn show_empty(&self, title: &str, description: &str) {
@@ -872,8 +872,8 @@ impl Sheet {
         self.stack.set_visible_child_name("empty");
     }
 
-    /// Liest den Ordner, mit oder ohne Unterordner. Ein laufender Scan des
-    /// vorigen Ordners wird abgebrochen.
+    /// Reads the folder, with or without subfolders. A running scan of the
+    /// previous folder is cancelled.
     fn scan(&self, dir: PathBuf) -> gio::JoinHandle<blick_core::Result<Vec<PathBuf>>> {
         let cancel = Arc::new(AtomicBool::new(false));
         self.scan_cancel
@@ -888,9 +888,9 @@ impl Sheet {
 
     fn count_text(&self, n: usize) -> String {
         if self.subfolders.is_active() {
-            format!("{}, mit Unterordnern", bilder(n))
+            format!("{}, with subfolders", picture_count(n))
         } else {
-            bilder(n)
+            picture_count(n)
         }
     }
 
@@ -909,7 +909,7 @@ impl Sheet {
         self.selection_changed();
 
         self.watch(&dir);
-        // Ordner auf dem NAS können dauern, also nicht im UI-Thread lesen.
+        // Folders on the NAS can take a while, so don't read them on the UI thread.
         let scan = self.scan(dir);
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = this)]
@@ -921,11 +921,11 @@ impl Sheet {
                 }
                 match result {
                     Ok(Ok(paths)) if paths.is_empty() => this.show_empty(
-                        "Keine Bilder in diesem Ordner",
+                        "No pictures in this folder",
                         if this.subfolders.is_active() {
-                            "Auch in den Unterordnern nicht. Blick zeigt JPEG, PNG, WebP, TIFF, HEIC, AVIF, JPEG XL und Kamera-RAW. Mit Strg+O öffnest du einen anderen Ordner."
+                            "Not in the subfolders either. Blick shows JPEG, PNG, WebP, TIFF, HEIC, AVIF, JPEG XL and camera RAW. Press Ctrl+O to open another folder."
                         } else {
-                            "Unterordner sind ausgeblendet; der Ordner-Knopf oben rechts blendet sie ein. Mit Strg+O öffnest du einen anderen Ordner."
+                            "Subfolders are hidden; the folder button at the top right shows them. Press Ctrl+O to open another folder."
                         },
                     ),
                     Ok(Ok(paths)) => {
@@ -935,14 +935,14 @@ impl Sheet {
                         this.store.splice(0, 0, &photos);
                         this.stack.set_visible_child_name("grid");
                     }
-                    Ok(Err(e)) => this.show_empty("Ordner lässt sich nicht lesen", &e.to_string()),
-                    Err(_) => this.show_empty("Ordner lässt sich nicht lesen", "Der Lesevorgang ist abgestürzt."),
+                    Ok(Err(e)) => this.show_empty("Folder can't be read", &e.to_string()),
+                    Err(_) => this.show_empty("Folder can't be read", "The read operation crashed."),
                 }
             }
         ));
     }
 
-    /// Lädt die Monatsliste und dann Monat für Monat, solange gescrollt wird.
+    /// Loads the month list and then month by month while scrolling.
     pub fn open_immich(self: &Rc<Self>, id: Option<String>, name: String) {
         let generation = self.next_generation();
         self.subfolders.set_visible(false);
@@ -956,8 +956,8 @@ impl Sheet {
         self.selection_changed();
         let Some(client) = self.ctx.immich() else {
             self.show_empty(
-                "Immich ist nicht verbunden",
-                "Trag Server und API-Schlüssel in den Einstellungen ein.",
+                "Immich is not connected",
+                "Enter the server and API key in the preferences.",
             );
             return;
         };
@@ -974,22 +974,22 @@ impl Sheet {
                 }
                 match result {
                     Ok(buckets) if buckets.is_empty() => this.show_empty(
-                        "Dieses Album ist leer",
-                        "Wähle im Kontaktbogen Bilder aus und lade sie mit Strg+U hoch.",
+                        "This album is empty",
+                        "Select pictures in the contact sheet and upload them with Ctrl+U.",
                     ),
                     Ok(buckets) => {
                         let total: u64 = buckets.iter().map(|b| b.count).sum();
                         this.title
-                            .set_subtitle(&format!("Immich, {}", bilder(total as usize)));
+                            .set_subtitle(&format!("Immich, {}", picture_count(total as usize)));
                         this.buckets.replace(buckets.clone());
                         this.fill_jump_list();
                         this.jump.set_visible(true);
                         this.pending_buckets.replace(buckets.into());
                         this.stack.set_visible_child_name("grid");
-                        // Zwei Monate vorab, damit der Bogen gleich gefüllt ist.
+                        // Two months ahead so the sheet is filled right away.
                         this.load_next_bucket();
                     }
-                    Err(e) => this.show_empty("Immich antwortet nicht", &format!("{e:#}")),
+                    Err(e) => this.show_empty("Immich is not responding", &format!("{e:#}")),
                 }
             }
         ));
@@ -1046,14 +1046,14 @@ impl Sheet {
                             }
                             return;
                         }
-                        // Reicht der Inhalt noch nicht über den Bildschirm, gleich weiter.
+                        // If the content doesn't fill the screen yet, keep going.
                         let adj = this.scroller.vadjustment();
                         if this.store.n_items() < 60 || adj.upper() <= adj.page_size() * 3.0 {
                             this.load_next_bucket();
                         }
                     }
                     Err(e) => {
-                        tracing::warn!("Immich-Monat nicht geladen: {e:#}");
+                        tracing::warn!("Immich month not loaded: {e:#}");
                         if this.jump_target.take().is_some() {
                             this.restore_subtitle();
                         }
@@ -1066,10 +1066,10 @@ impl Sheet {
     fn restore_subtitle(&self) {
         let total: u64 = self.buckets.borrow().iter().map(|b| b.count).sum();
         self.title
-            .set_subtitle(&format!("Immich, {}", bilder(total as usize)));
+            .set_subtitle(&format!("Immich, {}", picture_count(total as usize)));
     }
 
-    /// Fortschritt im unteren Balken; der Schalter bricht den Lauf ab.
+    /// Progress in the bottom bar; the button cancels the run.
     pub fn set_busy(&self, cancel: Arc<AtomicBool>) {
         self.cancel.replace(Some(cancel));
         self.actions.set_visible(false);
@@ -1084,7 +1084,7 @@ impl Sheet {
         self.progress
             .set_fraction(done as f64 / total.max(1) as f64);
         self.progress
-            .set_text(Some(&format!("{verb} {done} von {total}")));
+            .set_text(Some(&format!("{verb} {done} of {total}")));
     }
 
     pub fn set_idle(&self) {
@@ -1100,13 +1100,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn month_title_is_german() {
+    fn month_title_is_english() {
         let b = |t: &str| TimeBucket {
             time_bucket: t.into(),
             count: 3,
         };
-        assert_eq!(month_title(&b("2026-10-01T00:00:00.000Z")), "Oktober 2026");
-        assert_eq!(month_title(&b("2019-03-01T00:00:00.000Z")), "März 2019");
+        assert_eq!(month_title(&b("2026-10-01T00:00:00.000Z")), "October 2026");
+        assert_eq!(month_title(&b("2019-03-01T00:00:00.000Z")), "March 2019");
         assert_eq!(month_title(&b("???")), "???");
     }
 }

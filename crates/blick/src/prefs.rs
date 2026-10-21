@@ -1,4 +1,4 @@
-//! Einstellungen: Verbindung zu Immich.
+//! Preferences: connection to Immich.
 
 use std::rc::Rc;
 
@@ -8,9 +8,9 @@ use gtk::{gio, glib};
 use crate::config;
 use crate::runtime;
 
-const HELP: &str = "Blick lädt Bilder zu Immich hoch und zeigt deine Alben. \
-Den API-Schlüssel legst du in Immich unter Kontoeinstellungen, API-Schlüssel an. \
-Er braucht die Rechte user.read, album.read, asset.read, asset.view, asset.upload und albumAsset.create.";
+const HELP: &str = "Blick uploads pictures to Immich and shows your albums. \
+Create the API key in Immich under Account Settings, API Keys. \
+It needs the permissions user.read, album.read, asset.read, asset.view, asset.upload and albumAsset.create.";
 
 pub fn present(
     parent: &impl IsA<gtk::Widget>,
@@ -18,21 +18,21 @@ pub fn present(
     on_connected: impl Fn(blick_immich::Client) + 'static,
 ) {
     let url = adw::EntryRow::builder()
-        .title("Server-Adresse")
+        .title("Server address")
         .text(settings.string("immich-url"))
         .build();
     url.set_input_purpose(gtk::InputPurpose::Url);
     let key = adw::PasswordEntryRow::builder()
-        .title("API-Schlüssel")
+        .title("API key")
         .build();
 
     let check = gtk::Button::builder()
-        .label("Prüfen und speichern")
+        .label("Check and save")
         .valign(gtk::Align::Center)
         .build();
     let status = adw::ActionRow::builder()
-        .title("Verbindung")
-        .subtitle("Noch nicht geprüft")
+        .title("Connection")
+        .subtitle("Not checked yet")
         .build();
     status.add_suffix(&check);
 
@@ -61,7 +61,7 @@ pub fn present(
         move |button| {
             let (server, secret) = (url.text().trim().to_owned(), key.text().trim().to_owned());
             if secret.is_empty() {
-                status.set_subtitle("Bitte einen API-Schlüssel eintragen.");
+                status.set_subtitle("Please enter an API key.");
                 return;
             }
             let client = match blick_immich::Client::new(&server, &secret) {
@@ -72,7 +72,7 @@ pub fn present(
                 }
             };
             button.set_sensitive(false);
-            status.set_subtitle("Prüfe …");
+            status.set_subtitle("Checking …");
             let settings = settings.clone();
             let on_connected = on_connected.clone();
             glib::spawn_future_local(glib::clone!(
@@ -93,10 +93,10 @@ pub fn present(
                     };
                     let _ = settings.set_string("immich-url", &server);
                     let stored = runtime::spawn(config::store_api_key(server, secret)).await;
-                    let mut text = format!("Angemeldet als {} ({})", user.name, user.email);
+                    let mut text = format!("Signed in as {} ({})", user.name, user.email);
                     if let Err(e) = stored {
-                        tracing::warn!("Schlüsselbund: {e:#}");
-                        text.push_str(". Der Schlüsselbund ist nicht erreichbar, der Schlüssel gilt nur bis zum Beenden.");
+                        tracing::warn!("keyring: {e:#}");
+                        text.push_str(". The keyring is not reachable, so the key only lasts until you quit.");
                     }
                     status.set_subtitle(&text);
                     on_connected(client);

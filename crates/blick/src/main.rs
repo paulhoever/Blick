@@ -1,4 +1,4 @@
-//! Blick: Bildbetrachter mit Kontaktbogen, Korrekturen, Batch-Rotation und Immich.
+//! Blick: image viewer with contact sheet, adjustments, batch rotation and Immich.
 
 mod config;
 mod convert;
@@ -38,13 +38,13 @@ fn main() -> glib::ExitCode {
     blick_core::rotate::set_fallback(glycin_loader::rotate_blocking);
     blick_core::decode::set_frame_grabber(video::grab_frame);
 
-    // `blick --probe <dateien>`: nur dekodieren und Maße ausgeben, ohne Fenster.
-    // Dient zum Testen der Loader im Flatpak.
+    // `blick --probe <files>`: only decode and print dimensions, no window.
+    // Used to test the loaders in the Flatpak.
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("--probe") {
         return probe(&args[2..]);
     }
-    // `blick --rotate <links|rechts> <dateien>`: drehen ohne Fenster, zum Testen.
+    // `blick --rotate <left|right> <files>`: rotate without a window, for testing.
     if args.get(1).map(String::as_str) == Some("--rotate") && args.len() >= 4 {
         let rot = if args[2] == "links" {
             blick_core::Rotation::Left
@@ -67,12 +67,12 @@ fn main() -> glib::ExitCode {
             glib::ExitCode::FAILURE
         };
     }
-    // `blick --apply-look <stil> <bild> <ziel>`: Stil anwenden, ohne Fenster.
+    // `blick --apply-look <look> <image> <target>`: apply a look, no window.
     if args.get(1).map(String::as_str) == Some("--apply-look") && args.len() == 5 {
         return apply_look(&args[2], &args[3], &args[4]);
     }
 
-    gio::resources_register_include!("blick.gresource").expect("Ressourcen fehlen im Binary");
+    gio::resources_register_include!("blick.gresource").expect("resources missing from the binary");
 
     let app = adw::Application::builder()
         .application_id(config::APP_ID)
@@ -100,7 +100,7 @@ fn main() -> glib::ExitCode {
         app.add_action_entries([quit]);
     });
 
-    // `blick -r ~/Photos`: Ordner rekursiv als Bibliothek aufnehmen.
+    // `blick -r ~/Photos`: add a folder to the library, recursively.
     let recursive = args.iter().any(|a| a == "-r" || a == "--recursive");
     let args: Vec<String> = args
         .into_iter()
@@ -111,10 +111,10 @@ fn main() -> glib::ExitCode {
         window::Window::open(app, None, Vec::new(), false).present();
     });
 
-    // `blick ~/Bilder/Urlaub` öffnet direkt dort.
+    // `blick ~/Pictures/Holiday` opens right there.
     app.connect_open(move |app, files, _| {
         let paths: Vec<_> = files.iter().filter_map(|f| f.path()).collect();
-        // Ein Ordner als Argument öffnet den Kontaktbogen, Bilddateien gehen direkt in den Viewer.
+        // A folder argument opens the contact sheet, image files go straight to the viewer.
         let (folder, images): (Vec<_>, Vec<_>) = paths.into_iter().partition(|p| p.is_dir());
         let start = folder.into_iter().next();
         let images = if start.is_some() { Vec::new() } else { images };
@@ -162,7 +162,7 @@ fn apply_look(look: &str, src: &str, dst: &str) -> glib::ExitCode {
             t.elapsed()
         );
         if !look.ignored.is_empty() {
-            println!("nicht übernommen: {}", look.ignored.join(", "));
+            println!("not applied: {}", look.ignored.join(", "));
         }
         Ok(())
     };

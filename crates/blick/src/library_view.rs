@@ -1,9 +1,9 @@
-//! Seitenleisten-Abschnitt „Bibliothek“: Ordner wie `~/Photos`, rekursiv
-//! durchsucht. Jeder Unterordner mit Bildern erscheint als Album.
+//! Sidebar section "Library": folders like `~/Photos`, searched recursively.
+//! Every subfolder with pictures shows up as an album.
 //!
-//! Der Scan läuft in einem eigenen Thread und meldet Alben, sobald sie gefunden
-//! sind. Bei großen Bäumen auf dem NAS füllt sich die Liste also nach und nach,
-//! statt minutenlang leer zu bleiben.
+//! The scan runs on its own thread and reports albums as soon as they are found.
+//! With big trees on the NAS the list fills in bit by bit
+//! instead of staying empty for minutes.
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
@@ -16,7 +16,7 @@ use blick_core::library::Album;
 use gtk::prelude::*;
 use gtk::{gio, glib};
 
-/// Wie oft die Liste während eines Scans höchstens neu aufgebaut wird.
+/// How often at most the list is rebuilt during a scan.
 const RENDER_DELAY_MS: u64 = 200;
 
 struct Root {
@@ -84,7 +84,7 @@ fn row(
     }
     let row = gtk::ListBoxRow::builder().child(&b).build();
     let name = match suffix {
-        Some(s) => format!("{label}, {s} Bilder"),
+        Some(s) => format!("{label}, {s} pictures"),
         None => label.to_owned(),
     };
     row.update_property(&[gtk::accessible::Property::Label(&name)]);
@@ -136,8 +136,8 @@ impl LibraryView {
         self.list.unselect_all();
     }
 
-    /// Nimmt einen Ordner in die Bibliothek auf und startet den Scan.
-    /// Steckt er schon in einer vorhandenen Bibliothek, passiert nichts.
+    /// Adds a folder to the library and starts the scan.
+    /// If it already sits inside an existing library, nothing happens.
     pub fn add_root(self: &Rc<Self>, path: PathBuf) {
         if self
             .roots
@@ -147,7 +147,7 @@ impl LibraryView {
         {
             return;
         }
-        // Ein neuer Oberordner ersetzt Bibliotheken, die er schon enthält.
+        // A new parent folder replaces libraries it already contains.
         let inner: Vec<PathBuf> = self
             .roots
             .borrow()
@@ -187,7 +187,7 @@ impl LibraryView {
         self.render();
     }
 
-    /// Alle Bibliotheken neu durchsuchen, etwa nach einem Import.
+    /// Rescan all libraries, after an import for example.
     pub fn roots(&self) -> Vec<PathBuf> {
         self.roots.borrow().iter().map(|r| r.path.clone()).collect()
     }
@@ -226,7 +226,7 @@ impl LibraryView {
                 });
                 let _ = tx.send_blocking(Msg::Done(r.map_err(|e| e.to_string())));
             })
-            .expect("Scan-Thread ließ sich nicht starten");
+            .expect("scan thread failed to start");
 
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = this)]
@@ -234,7 +234,7 @@ impl LibraryView {
             async move {
                 while let Ok(msg) = rx.recv().await {
                     let mut roots = this.roots.borrow_mut();
-                    // Inzwischen entfernt: Rest verwerfen.
+                    // Removed in the meantime: discard the rest.
                     let Some(r) = roots.iter_mut().find(|r| r.path == root) else {
                         return;
                     };
@@ -242,7 +242,7 @@ impl LibraryView {
                         Msg::Album(a) => r.albums.push(a),
                         Msg::Done(res) => {
                             r.scanning = false;
-                            r.error = res.err().filter(|e| !e.contains("abgebrochen"));
+                            r.error = res.err().filter(|e| !e.contains("cancelled"));
                         }
                     }
                     drop(roots);
@@ -296,11 +296,11 @@ impl LibraryView {
             }));
             let remove = gtk::Button::builder()
                 .icon_name("list-remove-symbolic")
-                .tooltip_text("Aus der Bibliothek entfernen")
+                .tooltip_text("Remove from library")
                 .valign(gtk::Align::Center)
                 .build();
             remove.add_css_class("flat");
-            // Der Knopf geht über eine Fensteraktion, damit die Zeile das View-Objekt nicht halten muss.
+            // The button goes through a window action so the row doesn't have to hold the view object.
             remove.set_action_name(Some("win.library-remove"));
             remove.set_action_target_value(Some(&root.path.to_string_lossy().to_variant()));
             b.append(&remove);
@@ -310,8 +310,8 @@ impl LibraryView {
             if !root.expanded {
                 continue;
             }
-            // Zwischenordner ohne eigene Bilder trotzdem zeigen, sonst hängen
-            // `2024/Urlaub` und `2024/Garten` ohne `2024` in der Luft.
+            // Show intermediate folders without pictures of their own anyway, otherwise
+            // `2024/Holiday` and `2024/Garden` would hang in the air without `2024`.
             let album_rels: BTreeSet<&str> = root.albums.iter().map(|a| a.rel.as_str()).collect();
             let mut shown: BTreeSet<String> = BTreeSet::new();
             let mut albums: Vec<&Album> =
@@ -338,7 +338,7 @@ impl LibraryView {
                     }
                 }
                 shown.insert(a.rel.clone());
-                let name = parts.last().copied().unwrap_or("Bilder direkt hier");
+                let name = parts.last().copied().unwrap_or("Pictures right here");
                 let (r, _) = row(parts.len().max(1), None, name, Some(&a.count.to_string()));
                 r.set_tooltip_text(Some(&a.dir.display().to_string()));
                 if selected.as_deref() == Some(a.dir.as_path()) {
@@ -351,10 +351,10 @@ impl LibraryView {
         let (add, _) = row(
             0,
             Some("list-add-symbolic"),
-            "Ordner zur Bibliothek hinzufügen …",
+            "Add folder to library …",
             None,
         );
-        add.set_tooltip_text(Some("Durchsucht den Ordner mit allen Unterordnern"));
+        add.set_tooltip_text(Some("Searches the folder with all its subfolders"));
         self.list.append(&add);
         entries.push(Entry::Add);
         self.entries.replace(entries);

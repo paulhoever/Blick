@@ -1,4 +1,4 @@
-//! Antworten der Immich-API, nur die Felder, die Blick braucht.
+//! Immich API responses, only the fields Blick needs.
 
 use serde::Deserialize;
 
@@ -26,14 +26,14 @@ pub struct Album {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimeBucket {
-    /// Monatsanfang als ISO-Zeitstempel, so wie der Server ihn liefert.
-    /// Wird unverändert an `/timeline/bucket` zurückgegeben.
+    /// Start of the month as an ISO timestamp, exactly as the server delivers it.
+    /// Passed back unchanged to `/timeline/bucket`.
     pub time_bucket: String,
     pub count: u64,
 }
 
-/// `/timeline/bucket` antwortet spaltenweise: ein Array pro Feld.
-/// Das spart bei großen Alben viel JSON, ist aber unpraktisch zum Arbeiten.
+/// `/timeline/bucket` answers column-wise: one array per field.
+/// That saves a lot of JSON on big albums but is awkward to work with.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct BucketColumns {
@@ -49,7 +49,7 @@ pub(crate) struct BucketColumns {
 pub struct RemoteAsset {
     pub id: String,
     pub is_image: bool,
-    /// Breite durch Höhe.
+    /// Width over height.
     pub ratio: f64,
     pub file_created_at: String,
     pub thumbhash: Option<String>,
@@ -76,19 +76,19 @@ impl BucketColumns {
     }
 }
 
-/// Ein Treffer der Metadatensuche, mit allem, was die Dublettensuche braucht.
+/// A hit of the metadata search, with everything the duplicate search needs.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SearchAsset {
     pub id: String,
     pub name: String,
     pub is_image: bool,
-    /// SHA-1 des Originals, hex.
+    /// SHA-1 of the original, hex.
     pub checksum_hex: String,
     pub size: u64,
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub file_created_at: String,
-    /// Unix-Sekunden, aus `file_created_at`; 0, wenn unlesbar.
+    /// Unix seconds, from `file_created_at`; 0 if unreadable.
     pub created_unix: i64,
 }
 
@@ -135,7 +135,7 @@ pub(crate) struct RawExif {
 pub enum UploadStatus {
     Created,
     Duplicate,
-    /// Ältere Server kennen noch `replaced`.
+    /// Older servers still know `replaced`.
     #[serde(other)]
     Other,
 }
@@ -156,8 +156,8 @@ pub struct BulkIdResponse {
 }
 
 impl TimeBucket {
-    /// Jahr und Monat (1–12) aus dem Zeitstempel, ohne Zeitzonenrechnung:
-    /// Immich legt den Monatsanfang in Ortszeit ab und schreibt nur ein Z dran.
+    /// Year and month (1–12) from the timestamp, without time zone math:
+    /// Immich stores the start of the month in local time and just appends a Z.
     pub fn year_month(&self) -> Option<(i32, u32)> {
         let y = self.time_bucket.get(..4)?.parse().ok()?;
         let m: u32 = self.time_bucket.get(5..7)?.parse().ok()?;

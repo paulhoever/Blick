@@ -1,9 +1,9 @@
-//! Bildstile („Looks“): Farb- und Tonwertvorgaben, Filmsimulationen, LUTs.
+//! Looks: color and tone presets, film simulations, LUTs.
 //!
-//! Jeder Look wird für die Anwendung in eine 33³-LUT übersetzt. Pro Pixel
-//! bleibt dann ein einziger Nachschlag, egal ob der Look aus einem `.cube`,
-//! einer HaldCLUT oder einem Lightroom-Preset mit dreißig Reglern stammt.
-//! Körnung und Vignette laufen danach, weil sie von der Position abhängen.
+//! Every look is turned into a 33³ LUT for use. Per pixel that leaves
+//! a single lookup, whether the look came from a `.cube`,
+//! a HaldCLUT or a Lightroom preset with thirty sliders.
+//! Grain and vignette run afterwards because they depend on position.
 
 pub mod cube;
 pub mod effects;
@@ -23,8 +23,8 @@ pub use effects::{Grain, Vignette};
 pub use lut::Lut3d;
 pub use params::{Curve, Params, Tint};
 
-/// Gittergröße der gebackenen LUT. 33 ist der übliche Kompromiss von Resolve
-/// und Photoshop; feiner sieht man bei 8 Bit Ausgabe nicht.
+/// Grid size of the baked LUT. 33 is the usual compromise of Resolve
+/// and Photoshop; finer isn't visible with 8-bit output.
 pub const BAKE_SIZE: usize = 33;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,7 +43,7 @@ pub struct Look {
     pub lut: Option<Arc<Lut3d>>,
     pub grain: Grain,
     pub vignette: Vignette,
-    /// Was beim Import nicht übernommen werden konnte (nur bei `.xmp`).
+    /// What couldn't be imported (only for `.xmp`).
     pub ignored: Vec<String>,
 }
 
@@ -76,7 +76,7 @@ impl Look {
         )
     }
 
-    /// Lädt `.cube`, HaldCLUT-`.png` oder Lightroom-`.xmp`.
+    /// Loads `.cube`, HaldCLUT `.png` or Lightroom `.xmp`.
     pub fn load(path: &Path) -> Result<Self> {
         let bad = |reason: String| CoreError::Decode {
             path: path.to_owned(),
@@ -119,10 +119,10 @@ impl Look {
         }
     }
 
-    /// Mitgelieferte Looks. Bewusst schlicht und selbst gebaut: Filmsimulationen
-    /// bekannter Marken haben ungeklärte Rechte und werden importiert, nicht verteilt.
+    /// Bundled looks. Deliberately plain and built in-house: film simulations
+    /// of well-known brands have unclear rights and are imported, not shipped.
     pub fn builtins() -> Vec<Self> {
-        let mut bw = Self::plain("Schwarzweiß", Kind::Builtin);
+        let mut bw = Self::plain("Black & White", Kind::Builtin);
         bw.params.grayscale = true;
         bw.params.contrast = 15.0;
 
@@ -130,11 +130,11 @@ impl Look {
         warm.params.temperature = 35.0;
         warm.params.vibrance = 10.0;
 
-        let mut cool = Self::plain("Kühl", Kind::Builtin);
+        let mut cool = Self::plain("Cool", Kind::Builtin);
         cool.params.temperature = -30.0;
         cool.params.highlights = -10.0;
 
-        let mut faded = Self::plain("Verblasst", Kind::Builtin);
+        let mut faded = Self::plain("Faded", Kind::Builtin);
         faded.params.curve = Curve {
             points: vec![(0.0, 0.10), (0.5, 0.52), (1.0, 0.94)],
         };
@@ -144,7 +144,7 @@ impl Look {
             saturation: 15.0,
         };
 
-        let mut film = Self::plain("Körnig", Kind::Builtin);
+        let mut film = Self::plain("Grainy", Kind::Builtin);
         film.params.contrast = 10.0;
         film.grain = Grain {
             amount: 35.0,
@@ -159,7 +159,7 @@ impl Look {
         vec![bw, warm, cool, faded, film]
     }
 
-    /// Backt den Look mit `strength` (0..=1) zur Anwendung.
+    /// Bakes the look with `strength` (0..=1) for use.
     pub fn render(&self, strength: f32) -> Render {
         let s = strength.clamp(0.0, 1.0);
         let identity = self.params.is_identity() && self.lut.is_none();
@@ -184,7 +184,7 @@ impl Look {
     }
 }
 
-/// Ein fertig gebackener Look, billig zu klonen und threadsicher.
+/// A finished baked look, cheap to clone and thread-safe.
 #[derive(Clone, Debug, Default)]
 pub struct Render {
     pub lut: Option<Lut3d>,
@@ -197,8 +197,8 @@ impl Render {
         self.lut.is_none() && self.grain.is_none() && self.vignette.is_none()
     }
 
-    /// `seed` legt das Korn fest. Gleiche Datei, gleiches Korn: die App nimmt
-    /// einen Hash des Pfads.
+    /// `seed` fixes the grain. Same file, same grain: the app uses
+    /// a hash of the path.
     pub fn apply(&self, px: &mut Pixels, seed: u64) {
         if let Some(lut) = &self.lut {
             px.data.par_chunks_mut(4 * 4096).for_each(|chunk| {
@@ -218,7 +218,7 @@ impl Render {
         self.vignette.apply(&mut px.data, px.width, px.height);
     }
 
-    /// Die Farbwirkung als `.cube` (ohne Körnung und Vignette, die kann kein LUT-Format).
+    /// The color effect as `.cube` (without grain and vignette, which no LUT format can hold).
     pub fn to_cube(&self, title: &str) -> String {
         self.lut
             .clone()
@@ -227,8 +227,8 @@ impl Render {
     }
 }
 
-/// Findet einen Look zu einem Sidecar-Schlüssel (Pfad im Stilordner oder
-/// `blick:<Name>`). Den Stilordner kennt nur die App, sie registriert das.
+/// Finds a look for a sidecar key (path in the look folder or
+/// `blick:<Name>`). Only the app knows the look folder; it registers it.
 pub type Resolver = dyn Fn(&str) -> Option<Arc<Look>> + Send + Sync;
 
 static RESOLVER: std::sync::OnceLock<Box<Resolver>> = std::sync::OnceLock::new();
@@ -237,9 +237,17 @@ pub fn set_resolver(f: impl Fn(&str) -> Option<Arc<Look>> + Send + Sync + 'stati
     let _ = RESOLVER.set(Box::new(f));
 }
 
-/// Mitgelieferte Looks lassen sich ohne App auflösen.
+/// Bundled looks resolve without the app.
 fn resolve(key: &str) -> Option<Arc<Look>> {
     if let Some(name) = key.strip_prefix("blick:") {
+        // Sidecars written before the English names still carry the German ones.
+        let name = match name {
+            "Schwarzweiß" => "Black & White",
+            "Kühl" => "Cool",
+            "Verblasst" => "Faded",
+            "Körnig" => "Grainy",
+            other => other,
+        };
         return Look::builtins()
             .into_iter()
             .find(|l| l.name == name)
@@ -248,11 +256,11 @@ fn resolve(key: &str) -> Option<Arc<Look>> {
     RESOLVER.get().and_then(|f| f(key))
 }
 
-/// Gebackene Looks für Thumbnails, damit nicht jedes Bild neu backt.
+/// Baked looks for thumbnails, so not every image bakes again.
 type RenderCache = std::sync::Mutex<std::collections::HashMap<(String, u32), Arc<Render>>>;
 static RENDERS: std::sync::LazyLock<RenderCache> = std::sync::LazyLock::new(Default::default);
 
-/// Wendet gemerkten Zuschnitt, Korrekturen und Stil aus `<bild>.xmp` an, falls vorhanden.
+/// Applies remembered crop, adjustments and look from `<image>.xmp`, if present.
 pub fn apply_sidecar(path: &Path, px: &mut Pixels) {
     let Some(e) = crate::sidecar::read_edit(path) else {
         return;

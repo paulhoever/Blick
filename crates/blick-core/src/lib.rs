@@ -1,5 +1,5 @@
-//! Bildverarbeitung für Blick. Kennt kein GTK und keinen Event-Loop:
-//! alles hier ist synchron und wird von der App in Worker-Threads aufgerufen.
+//! Image processing for Blick. Knows nothing about GTK or an event loop:
+//! everything here is synchronous and called by the app from worker threads.
 
 pub mod adjust;
 pub mod batch;

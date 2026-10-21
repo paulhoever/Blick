@@ -16,15 +16,15 @@ pub enum CoreError {
         #[source]
         source: image::ImageError,
     },
-    #[error("{path}: Metadaten nicht lesbar ({reason})")]
+    #[error("{path}: metadata unreadable ({reason})")]
     Metadata { path: PathBuf, reason: String },
-    #[error("{path}: lässt sich nicht dekodieren ({reason})")]
+    #[error("{path}: cannot be decoded ({reason})")]
     Decode { path: PathBuf, reason: String },
-    #[error("Skalierung fehlgeschlagen: {0}")]
+    #[error("Scaling failed: {0}")]
     Resize(String),
-    #[error("{0}: Format wird nicht unterstützt")]
+    #[error("{0}: format not supported")]
     Unsupported(PathBuf),
-    #[error("abgebrochen")]
+    #[error("cancelled")]
     Cancelled,
 }
 

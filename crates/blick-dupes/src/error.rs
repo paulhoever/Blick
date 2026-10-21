@@ -2,7 +2,7 @@ use std::io;
 
 #[derive(Debug, thiserror::Error)]
 pub enum DupeError {
-    #[error("abgebrochen")]
+    #[error("cancelled")]
     Cancelled,
     #[error("{0}: {1}")]
     Io(String, #[source] io::Error),

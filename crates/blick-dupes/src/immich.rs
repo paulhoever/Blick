@@ -1,5 +1,5 @@
-//! Immich als Quelle: Liste samt SHA-1 aus der Suche, Vorschaubilder für den
-//! Bildvergleich, Papierkorb statt Löschen. Kein Download für Inhaltsvergleich.
+//! Immich as a source: list with SHA-1 from the search, previews for the
+//! image comparison, trash instead of delete. No download for content comparison.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -11,7 +11,7 @@ use crate::source::{Entry, Storage};
 pub struct ImmichStorage {
     pub client: Client,
     pub handle: tokio::runtime::Handle,
-    /// `None`: die ganze Bibliothek.
+    /// `None`: the whole library.
     pub album: Option<String>,
     pub label: String,
 }
@@ -20,7 +20,7 @@ fn asset_id(e: &Entry) -> Result<&str> {
     e.uri
         .strip_prefix("immich://")
         .and_then(|r| r.split('/').next())
-        .ok_or_else(|| DupeError::Other(format!("keine Immich-Adresse: {}", e.uri)))
+        .ok_or_else(|| DupeError::Other(format!("no Immich address: {}", e.uri)))
 }
 
 fn err(e: blick_immich::Error) -> DupeError {
@@ -90,7 +90,7 @@ impl Storage for ImmichStorage {
         true
     }
 
-    /// Immichs Papierkorb: bleibt dort, bis er geleert wird.
+    /// Immich's trash: items stay there until it's emptied.
     fn trash(&self, e: &Entry) -> Result<()> {
         let id = asset_id(e)?.to_owned();
         self.handle.block_on(self.client.trash_assets(&[id])).map_err(err)

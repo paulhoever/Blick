@@ -1,48 +1,48 @@
-//! Quellen-Abstraktion: lokaler Ordner, später gvfs-Orte und Immich.
+//! Source abstraction: local folder, later gvfs locations and Immich.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::error::{DupeError, Result};
 
-/// Eine Datei in einer Quelle. `uri` ist für Menschen und als Cache-Schlüssel.
+/// A file in a source. `uri` is for humans and serves as the cache key.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Entry {
     pub uri: String,
     pub size: u64,
     pub mtime: i64,
-    /// Identität im Dateisystem (`dev:ino`), erkennt Hardlinks.
+    /// Identity in the file system (`dev:ino`), detects hardlinks.
     pub id: Option<String>,
-    /// Vom Server gelieferte Prüfsumme (Immich: SHA-1, hex). Spart den Download.
+    /// Checksum supplied by the server (Immich: SHA-1, hex). Saves the download.
     pub checksum: Option<String>,
-    /// Maße, falls die Quelle sie schon kennt.
+    /// Dimensions, if the source already knows them.
     pub dims: Option<(u32, u32)>,
 }
 
 pub trait Storage: Send + Sync {
-    /// Kurzname für Anzeige und Cache-Namensraum.
+    /// Short name for display and cache namespace.
     fn label(&self) -> String;
-    /// Alle Dateien unterhalb der Wurzel, rekursiv.
+    /// All files below the root, recursive.
     fn list(&self, cancel: &AtomicBool, on_entry: &mut dyn FnMut(Entry)) -> Result<()>;
     fn read_range(&self, e: &Entry, offset: u64, len: usize) -> Result<Vec<u8>>;
     fn read_all(&self, e: &Entry) -> Result<Vec<u8>>;
-    /// Bytes, aus denen sich das Bild für den Vergleich dekodieren lässt.
-    /// Standard: die Datei selbst; Server mit Vorschaubildern liefern die Vorschau.
+    /// Bytes the image can be decoded from for comparison.
+    /// Default: the file itself; servers with previews supply the preview.
     fn read_thumb(&self, e: &Entry) -> Result<Vec<u8>> {
         self.read_all(e)
     }
-    /// In den Papierkorb, wo die Quelle einen hat.
+    /// To the trash, where the source has one.
     fn trash(&self, e: &Entry) -> Result<()>;
-    /// Quellen mit Prüfsumme kennen den Inhalt ohne Lesen.
-    /// Endgültig löschen, wo es keinen Papierkorb gibt (SMB, SFTP).
+    /// Sources with a checksum know the content without reading.
+    /// Delete permanently, where there is no trash (SMB, SFTP).
     fn delete(&self, e: &Entry) -> Result<()> {
-        Err(DupeError::Other(format!("Löschen nicht möglich: {}", e.uri)))
+        Err(DupeError::Other(format!("cannot delete: {}", e.uri)))
     }
-    /// `read_thumb` liefert ein fertig dekodierbares Rasterbild, egal welche Endung.
+    /// `read_thumb` returns a raster image that decodes as is, whatever the extension.
     fn thumbs_are_rasters(&self) -> bool {
         false
     }
-    /// Pfad im lokalen Dateisystem, wenn es einen gibt (Verschieben, Hardlinks).
+    /// Path in the local file system, if there is one (moving, hardlinks).
     fn local_path(&self, _e: &Entry) -> Option<PathBuf> {
         None
     }
@@ -127,11 +127,11 @@ impl Storage for LocalStorage {
         Some(Self::path(e).to_owned())
     }
 
-    /// Lokal gibt es hier keinen Papierkorb ohne GIO: die App ersetzt diese
-    /// Quelle beim Löschen durch den gio-Weg. Dieser Pfad löscht nicht.
+    /// Locally there is no trash without GIO: the app replaces this
+    /// source with the gio route when deleting. This path doesn't delete.
     fn trash(&self, e: &Entry) -> Result<()> {
         Err(DupeError::Other(format!(
-            "Papierkorb braucht GIO: {}",
+            "Trash needs GIO: {}",
             e.uri
         )))
     }

@@ -1,12 +1,12 @@
 [Desktop Entry]
 Name=Blick
-Comment=Bilder ansehen, drehen, korrigieren und zu Immich hochladen
+Comment=View, rotate and adjust pictures and upload them to Immich
 Exec=blick %U
 Icon=io.github.paulhoever.Blick
 Terminal=false
 Type=Application
 Categories=Graphics;Viewer;Photography;GTK;GNOME;
-Keywords=Foto;Bild;Betrachter;Kontaktbogen;Immich;Drehen;RAW;Film;LUT;Photo;Image;Viewer;
+Keywords=Photo;Picture;Image;Viewer;Contact sheet;Immich;Rotate;RAW;Film;LUT;
 MimeType=inode/directory;image/jpeg;image/png;image/webp;image/gif;image/bmp;image/tiff;image/heif;image/heic;image/avif;image/jxl;image/svg+xml;image/x-exr;image/qoi;image/x-tga;image/x-portable-anymap;image/x-portable-bitmap;image/x-portable-graymap;image/x-portable-pixmap;image/vnd.microsoft.icon;image/x-icon;image/x-dds;image/vnd.radiance;image/x-xpixmap;image/x-xbitmap;image/x-adobe-dng;image/x-canon-cr2;image/x-canon-cr3;image/x-canon-crw;image/x-nikon-nef;image/x-nikon-nrw;image/x-sony-arw;image/x-sony-srf;image/x-sony-sr2;image/x-fuji-raf;image/x-olympus-orf;image/x-panasonic-rw2;image/x-pentax-pef;image/x-samsung-srw;image/x-sigma-x3f;image/x-minolta-mrw;image/x-kodak-dcr;image/x-hasselblad-3fr;image/x-phaseone-iiq;
 StartupNotify=true
 DBusActivatable=false

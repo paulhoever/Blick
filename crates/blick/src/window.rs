@@ -1,5 +1,5 @@
-//! Hauptfenster: Seitenleiste mit Orten und Immich-Alben, rechts der
-//! Kontaktbogen, darüber bei Bedarf die Einzelansicht.
+//! Main window: sidebar with places and Immich albums, on the right the
+//! contact sheet, with the single view on top when needed.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -17,7 +17,7 @@ use crate::dupes_view::DupesView;
 use crate::library_view::LibraryView;
 use crate::photo::Photo;
 use crate::runtime;
-use crate::sheet::{Origin, Sheet, bilder};
+use crate::sheet::{Origin, Sheet, picture_count};
 use crate::viewer::Viewer;
 
 pub struct Window {
@@ -34,17 +34,17 @@ pub struct Window {
     places: gtk::ListBox,
     library: Rc<LibraryView>,
     albums: gtk::ListBox,
-    /// Pfad pro Zeile in `places`; `None` ist „Ordner öffnen …“.
+    /// Path per row in `places`; `None` is "Open folder …".
     place_paths: RefCell<Vec<Option<PathBuf>>>,
-    /// Album-ID pro Zeile in `albums`; `None` ist die ganze Zeitleiste.
+    /// Album ID per row in `albums`; `None` is the whole timeline.
     album_ids: RefCell<Vec<(Option<String>, String)>>,
-    /// Einzeldatei-Start (`blick bild.jpg`): Viewer mit genau diesen Dateien, ohne Ordnerimport.
+    /// Single-file start (`blick picture.jpg`): viewer with exactly these files, no folder import.
     direct: RefCell<Option<gio::ListStore>>,
-    /// Zuletzt geöffneter Ordner, der unter „Auf diesem Gerät“ steht.
+    /// Last opened folder, shown under "On this device".
     custom_place: RefCell<Option<PathBuf>>,
 }
 
-/// Eingehängte Wechseldatenträger (USB, SD-Karte) mit lokalem Pfad.
+/// Mounted removable drives (USB, SD card) with a local path.
 fn removable_mounts() -> Vec<(String, PathBuf)> {
     let monitor = gio::VolumeMonitor::get();
     monitor
@@ -77,7 +77,7 @@ fn sidebar_row(icon: &str, label: &str, suffix: Option<&str>) -> gtk::ListBoxRow
         b.append(&c);
     }
     let row = gtk::ListBoxRow::builder().child(&b).build();
-    // Ohne eigenen Namen lesen Screenreader die Zeile nicht vor.
+    // Without a name of its own, screen readers don't read the row aloud.
     let name = match suffix {
         Some(s) => format!("{label}, {s}"),
         None => label.to_owned(),
@@ -100,8 +100,8 @@ fn section_label(text: &str) -> gtk::Label {
 }
 
 impl Window {
-    /// `recursive`: `start` wird als Bibliothek aufgenommen (`blick -r <ordner>`).
-    /// `files` nicht leer: die Bilder direkt im Viewer zeigen, ohne den Ordner zu laden.
+    /// `recursive`: `start` is added as a library (`blick -r <folder>`).
+    /// `files` not empty: show the pictures straight in the viewer, without loading the folder.
     pub fn open(
         app: &adw::Application,
         start: Option<PathBuf>,
@@ -125,7 +125,7 @@ impl Window {
         albums.add_css_class("navigation-sidebar");
 
         let menu = gio::Menu::new();
-        // Oben im Menü der Hell/Dunkel-Umschalter, wie in den GNOME-Kern-Apps.
+        // At the top of the menu the light/dark switcher, as in the GNOME core apps.
         let theme_section = gio::Menu::new();
         let theme_item = gio::MenuItem::new(None, None);
         theme_item.set_attribute_value("custom", Some(&"theme".to_variant()));
@@ -133,33 +133,33 @@ impl Window {
         menu.append_section(None, &theme_section);
         let tools = gio::Menu::new();
         tools.append(
-            Some("Bibliothek neu durchsuchen"),
+            Some("Rescan library"),
             Some("win.library-rescan"),
         );
-        tools.append(Some("Dubletten suchen …"), Some("win.find-duplicates"));
+        tools.append(Some("Find duplicates …"), Some("win.find-duplicates"));
         tools.append(
-            Some("Ordner nach JPEG XL umwandeln …"),
+            Some("Convert folder to JPEG XL …"),
             Some("win.convert-jxl"),
         );
         tools.append(
-            Some("Stilordner importieren …"),
+            Some("Import look folder …"),
             Some("win.looks-import-folder"),
         );
         tools.append(
-            Some("Filmsimulationen herunterladen"),
+            Some("Download film simulations"),
             Some("win.looks-download"),
         );
         menu.append_section(None, &tools);
-        // Letzter Abschnitt wie in allen GNOME-Apps: Einstellungen, Kürzel, Info.
+        // Last section as in all GNOME apps: preferences, shortcuts, about.
         let app_section = gio::Menu::new();
-        app_section.append(Some("Einstellungen"), Some("win.preferences"));
-        app_section.append(Some("Tastenkürzel"), Some("win.shortcuts"));
-        app_section.append(Some("Info zu Blick"), Some("win.about"));
+        app_section.append(Some("Preferences"), Some("win.preferences"));
+        app_section.append(Some("Keyboard shortcuts"), Some("win.shortcuts"));
+        app_section.append(Some("About Blick"), Some("win.about"));
         menu.append_section(None, &app_section);
         let menu_button = gtk::MenuButton::builder()
             .icon_name("open-menu-symbolic")
             .menu_model(&menu)
-            .tooltip_text("Hauptmenü")
+            .tooltip_text("Main menu")
             .primary(true)
             .build();
         if let Some(popover) = menu_button.popover().and_downcast::<gtk::PopoverMenu>() {
@@ -169,11 +169,11 @@ impl Window {
         side_header.pack_end(&menu_button);
 
         let side_box = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        side_box.append(&section_label("Auf diesem Gerät"));
+        side_box.append(&section_label("On this device"));
         side_box.append(&places);
-        side_box.append(&section_label("Bibliothek"));
+        side_box.append(&section_label("Library"));
         side_box.append(&library.list);
-        // Immich-Abschnitt einklappbar: bei vielen Alben wird die Leiste sonst endlos.
+        // The Immich section collapses: with many albums the sidebar would be endless otherwise.
         let immich_head = gtk::Button::builder()
             .css_classes(["flat"])
             .margin_top(12)
@@ -184,7 +184,7 @@ impl Window {
         head_label.set_margin_top(0);
         head_label.set_margin_bottom(0);
         head_label.set_hexpand(true);
-        // Pfeil links, wie bei den Bibliotheksordnern.
+        // Arrow on the left, like the library folders.
         let head_icon = gtk::Image::from_icon_name("pan-down-symbolic");
         head_icon.add_css_class("dim-label");
         head_box.append(&head_icon);
@@ -200,7 +200,7 @@ impl Window {
             "pan-end-symbolic"
         }));
         immich_head.update_property(&[gtk::accessible::Property::Label(
-            "Immich-Alben ein- oder ausklappen",
+            "Expand or collapse Immich albums",
         )]);
         immich_head.connect_clicked(glib::clone!(
             #[weak]
@@ -235,7 +235,7 @@ impl Window {
             .child(&side_view)
             .build();
         let content = adw::NavigationPage::builder()
-            .title("Bilder")
+            .title("Pictures")
             .child(&nav)
             .build();
 
@@ -259,7 +259,7 @@ impl Window {
             .content(&toasts)
             .build();
 
-        // Unter 600 px Breite klappt die Seitenleiste ein.
+        // Below 600 px width the sidebar collapses.
         let bp = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
             adw::BreakpointConditionLengthType::MaxWidth,
             600.0,
@@ -267,7 +267,7 @@ impl Window {
         ));
         bp.add_setter(&split, "collapsed", Some(&true.to_value()));
         win.add_breakpoint(bp);
-        // Ganz schmal (Telefon): die Auswahlleiste zeigt nur noch Symbole.
+        // Very narrow (phone): the selection bar shows only icons.
         let narrow = adw::Breakpoint::new(adw::BreakpointCondition::new_length(
             adw::BreakpointConditionLengthType::MaxWidth,
             500.0,
@@ -302,8 +302,8 @@ impl Window {
         this.settings
             .bind("include-subfolders", &this.sheet.subfolders, "active")
             .build();
-        // Beim ersten Start ist der Bilder-Ordner Bibliothek; wer ihn entfernt,
-        // bekommt ihn nicht zurück.
+        // On first start the Pictures folder is the library; if you remove it,
+        // it doesn't come back.
         if !this.settings.boolean("library-initialized") {
             if let Some(pictures) = glib::user_special_dir(glib::UserDirectory::Pictures) {
                 this.library.add_root(pictures);
@@ -344,8 +344,8 @@ impl Window {
         }
         this.open_folder(folder);
 
-        // Alle Signale halten das Fenster-Objekt nur schwach. Diese eine starke
-        // Referenz lebt, bis das Fenster geschlossen wird.
+        // All signals hold the window object only weakly. This one strong
+        // reference lives until the window is closed.
         let keep = RefCell::new(Some(this));
         win.connect_close_request(move |_| {
             keep.take();
@@ -354,7 +354,7 @@ impl Window {
         win
     }
 
-    /// Bilder ohne Umweg über den Kontaktbogen zeigen. Den Ordner lädt erst der Weg zurück.
+    /// Show pictures without a detour through the contact sheet. Only the way back loads the folder.
     fn open_direct(self: &Rc<Self>, files: Vec<PathBuf>) {
         let store = gio::ListStore::new::<Photo>();
         for (i, p) in files.into_iter().enumerate() {
@@ -426,11 +426,11 @@ impl Window {
         self.update_actions();
     }
 
-    /// Offenen Ordner samt Unterordnern nach JPEG XL umwandeln (Menü, Rückfrage vorweg).
+    /// Convert the open folder with its subfolders to JPEG XL (menu, confirmation first).
     fn convert_to_jxl(self: &Rc<Self>) {
         let Some(Origin::Folder(dir)) = self.sheet.origin() else {
             self.toasts
-                .add_toast(adw::Toast::new("Zuerst einen Ordner öffnen."));
+                .add_toast(adw::Toast::new("Open a folder first."));
             return;
         };
         glib::spawn_future_local(glib::clone!(
@@ -444,32 +444,32 @@ impl Window {
                 };
                 if files.is_empty() {
                     this.toasts.add_toast(adw::Toast::new(
-                        "Keine JPEG-, PNG-, WebP- oder HEIC-Bilder gefunden.",
+                        "No JPEG, PNG, WebP or HEIC pictures found.",
                     ));
                     return;
                 }
                 let [jpeg, png, webp, heic] = crate::convert::count_by_kind(&files);
                 let body = format!(
-                    "{} in „{}“ und darunter: {jpeg} JPEG, {png} PNG, {webp} WebP, {heic} HEIC.\n\n\
-                     JPEG und PNG werden verlustfrei umgepackt (JPEG lässt sich bitgleich zurückholen). \
-                     WebP und HEIC werden immer umgewandelt (sichtbar verlustfrei, kann größer werden). \
-                     Aufnahmedaten (EXIF) bleiben erhalten. \
-                     Bilder mit Bearbeitung, Farbprofil oder Animation bleiben unberührt.",
-                    bilder(files.len()),
+                    "{} in \"{}\" and below: {jpeg} JPEG, {png} PNG, {webp} WebP, {heic} HEIC.\n\n\
+                     JPEG and PNG are repacked losslessly (a JPEG can be restored bit for bit). \
+                     WebP and HEIC are always converted (visually lossless, may get larger). \
+                     Capture data (EXIF) is kept. \
+                     Pictures with edits, a color profile or animation are left alone.",
+                    picture_count(files.len()),
                     dir.file_name()
                         .map(|n| n.to_string_lossy().into_owned())
                         .unwrap_or_else(|| dir.display().to_string()),
                 );
-                let trash = gtk::CheckButton::with_label("Originale in den Papierkorb legen");
+                let trash = gtk::CheckButton::with_label("Move originals to the trash");
                 trash.set_active(true);
                 let dialog = adw::AlertDialog::builder()
-                    .heading("Nach JPEG XL umwandeln?")
+                    .heading("Convert to JPEG XL?")
                     .body(body)
                     .extra_child(&trash)
                     .close_response("cancel")
                     .default_response("cancel")
                     .build();
-                dialog.add_responses(&[("cancel", "Abbrechen"), ("run", "Umwandeln")]);
+                dialog.add_responses(&[("cancel", "Cancel"), ("run", "Convert")]);
                 dialog.set_response_appearance("run", adw::ResponseAppearance::Suggested);
                 if dialog.choose_future(Some(&this.win)).await != "run" {
                     return;
@@ -484,24 +484,24 @@ impl Window {
                 let counter = saved.clone();
                 this.run_batch(
                     photos,
-                    "Wandle um:",
+                    "Converting:",
                     move |p| crate::convert::convert_file(p, trash_originals, &counter),
                     move |this, _, report| {
                         let bytes = saved.load(std::sync::atomic::Ordering::Relaxed);
                         let mut text = format!(
-                            "{} umgewandelt, {} gespart",
-                            bilder(report.done.len()),
+                            "{} converted, {} saved",
+                            picture_count(report.done.len()),
                             glib::format_size(bytes)
                         );
                         if !report.failed.is_empty() {
                             text.push_str(&format!(
-                                ". {} blieben unverändert, z. B. {}",
+                                ". {} stayed unchanged, e.g. {}",
                                 report.failed.len(),
                                 report.failed[0].1
                             ));
                         }
                         if report.cancelled > 0 {
-                            text.push_str(&format!(", {} abgebrochen", report.cancelled));
+                            text.push_str(&format!(", {} cancelled", report.cancelled));
                         }
                         this.toasts
                             .add_toast(adw::Toast::builder().title(text).timeout(10).build());
@@ -529,7 +529,7 @@ impl Window {
         }
     }
 
-    /// Drehen und Hochladen gehen nur mit lokalen Bildern und nicht während eines Laufs.
+    /// Rotating and uploading only work with local pictures and not during a run.
     fn update_actions(&self) {
         let in_viewer = self
             .nav
@@ -548,7 +548,7 @@ impl Window {
         self.set_enabled("share-link", remote);
     }
 
-    /// In der Einzelansicht das aktuelle Bild, sonst die Auswahl im Bogen.
+    /// In the single view the current picture, otherwise the selection in the sheet.
     fn target_photos(&self, in_viewer: bool) -> Vec<Photo> {
         let photos = if in_viewer {
             self.viewer.current().into_iter().collect()
@@ -558,8 +558,8 @@ impl Window {
         photos.into_iter().filter(|p| p.path().is_some()).collect()
     }
 
-    /// Was sich bearbeiten lässt (drehen, Stil): nur Bilder. Videos spielt
-    /// Blick ab, mehr nicht.
+    /// What can be edited (rotate, look): pictures only. Blick plays
+    /// videos, nothing more.
     fn editable_photos(&self, in_viewer: bool) -> Vec<Photo> {
         self.target_photos(in_viewer)
             .into_iter()
@@ -567,7 +567,7 @@ impl Window {
             .collect()
     }
 
-    /// Immich-IDs der Auswahl (oder des gezeigten Bildes).
+    /// Immich IDs of the selection (or of the picture shown).
     fn remote_ids(&self, in_viewer: bool) -> Vec<String> {
         let photos = if in_viewer {
             self.viewer.current().into_iter().collect()
@@ -636,7 +636,7 @@ impl Window {
             #[strong]
             w,
             move || {
-                // Eine neue Kopie soll im Bogen auftauchen.
+                // A new copy should show up in the sheet.
                 if let Some(this) = w.upgrade()
                     && let Some(Origin::Folder(dir)) = this.sheet.origin()
                 {
@@ -644,8 +644,8 @@ impl Window {
                 }
             }
         ));
-        // In der Einzelansicht zählt jede Spalte Bildfläche: Seitenleiste einklappen,
-        // beim Zurückgehen wieder ausklappen (sofern das Fenster breit genug ist).
+        // In the single view every column counts for picture space: collapse the sidebar,
+        // expand it again on the way back (if the window is wide enough).
         self.nav.connect_visible_page_notify(glib::clone!(
             #[strong]
             w,
@@ -686,7 +686,7 @@ impl Window {
             }
         ));
 
-        // Stick rein oder raus: Liste neu füllen, Auswahl auf den offenen Ordner zurücksetzen.
+        // Stick plugged in or out: refill the list, reset the selection to the open folder.
         let monitor = gio::VolumeMonitor::get();
         for signal in [0, 1] {
             let refresh = glib::clone!(
@@ -778,7 +778,7 @@ impl Window {
         let pictures = glib::user_special_dir(glib::UserDirectory::Pictures);
         if let Some(p) = &pictures {
             self.places
-                .append(&sidebar_row("folder-pictures-symbolic", "Bilder", None));
+                .append(&sidebar_row("folder-pictures-symbolic", "Pictures", None));
             paths.push(Some(p.clone()));
         }
         if let Some(c) = custom.filter(|c| Some(*c) != pictures.as_deref()) {
@@ -802,7 +802,7 @@ impl Window {
         }
         self.places.append(&sidebar_row(
             "folder-open-symbolic",
-            "Ordner öffnen …",
+            "Open folder …",
             None,
         ));
         paths.push(None);
@@ -824,7 +824,7 @@ impl Window {
         self.show_folder(dir);
     }
 
-    /// Album aus der Bibliothek: gleiche Ansicht, aber ohne Eintrag unter „Auf diesem Gerät“.
+    /// Album from the library: same view, but without an entry under "On this device".
     fn open_album(&self, dir: PathBuf) {
         self.places.unselect_all();
         self.albums.unselect_all();
@@ -842,7 +842,7 @@ impl Window {
 
     fn import_look_folder(self: &Rc<Self>) {
         let dialog = gtk::FileDialog::builder()
-            .title("Stilordner importieren")
+            .title("Import look folder")
             .modal(true)
             .build();
         glib::spawn_future_local(glib::clone!(
@@ -860,11 +860,11 @@ impl Window {
         ));
     }
 
-    /// Lädt die Film Simulation Collection von RawTherapee (CC BY-SA 4.0).
-    /// Fortschritt läuft im Toast mit, das Ganze dauert je nach Leitung ein paar Minuten.
+    /// Downloads RawTherapee's Film Simulation Collection (CC BY-SA 4.0).
+    /// Progress runs in the toast; the whole thing takes a few minutes depending on the line.
     fn download_looks(self: &Rc<Self>) {
         let toast = adw::Toast::builder()
-            .title("Lade Filmsimulationen …")
+            .title("Downloading film simulations …")
             .timeout(0)
             .build();
         self.toasts.add_toast(toast.clone());
@@ -883,7 +883,7 @@ impl Window {
                     if mb != last {
                         last = mb;
                         toast.set_title(&format!(
-                            "Lade Filmsimulationen … {mb} von {} MB",
+                            "Downloading film simulations … {mb} of {} MB",
                             total / 1_000_000
                         ));
                     }
@@ -892,10 +892,10 @@ impl Window {
                 let text = match task.await {
                     Ok(Ok(n)) => {
                         this.viewer.reload_looks();
-                        format!("{n} Filmsimulationen von RawTherapee geladen")
+                        format!("{n} RawTherapee film simulations downloaded")
                     }
-                    Ok(Err(e)) => format!("Download fehlgeschlagen: {e:#}"),
-                    Err(e) => format!("Download abgebrochen: {e}"),
+                    Ok(Err(e)) => format!("Download failed: {e:#}"),
+                    Err(e) => format!("Download cancelled: {e}"),
                 };
                 this.toasts.add_toast(adw::Toast::new(&text));
             }
@@ -904,7 +904,7 @@ impl Window {
 
     fn choose_library_folder(self: &Rc<Self>) {
         let dialog = gtk::FileDialog::builder()
-            .title("Ordner zur Bibliothek hinzufügen")
+            .title("Add folder to library")
             .modal(true)
             .build();
         glib::spawn_future_local(glib::clone!(
@@ -924,7 +924,7 @@ impl Window {
 
     fn choose_folder(self: &Rc<Self>) {
         let dialog = gtk::FileDialog::builder()
-            .title("Ordner öffnen")
+            .title("Open folder")
             .modal(true)
             .build();
         if let Some(Origin::Folder(dir)) = self.sheet.origin() {
@@ -934,13 +934,13 @@ impl Window {
             #[weak(rename_to = this)]
             self,
             async move {
-                // Abbrechen liefert einen Fehler, das ist kein Grund für eine Meldung.
+                // Cancel returns an error, which is no reason for a message.
                 if let Ok(Some(path)) = dialog
                     .select_folder_future(Some(&this.win))
                     .await
                     .map(|f| f.path())
                 {
-                    // Geöffnete Ordner werden mitsamt Unterordnern Teil der Bibliothek.
+                    // Opened folders become part of the library together with their subfolders.
                     this.library.add_root(path.clone());
                     this.open_folder(path);
                 }
@@ -960,7 +960,7 @@ impl Window {
     fn rotate_photos(self: &Rc<Self>, photos: Vec<Photo>, rot: Rotation, offer_undo: bool) {
         self.run_batch(
             photos,
-            "Drehe",
+            "Rotating",
             move |p| blick_core::rotate::rotate_file(p, rot).map(|_| ()),
             move |this, photos, report| {
                 let done: Vec<Photo> = photos
@@ -975,10 +975,10 @@ impl Window {
                     photo.reload(&this.ctx);
                 }
                 let toast = adw::Toast::builder()
-                    .title(report_text("gedreht", &report))
+                    .title(report_text("rotated", &report))
                     .build();
                 if offer_undo && !done.is_empty() {
-                    toast.set_button_label(Some("Rückgängig"));
+                    toast.set_button_label(Some("Undo"));
                     let w = Rc::downgrade(this);
                     toast.connect_button_clicked(move |_| {
                         if let Some(this) = w.upgrade() {
@@ -991,7 +991,7 @@ impl Window {
         );
     }
 
-    /// Batch über lokale Bilder mit Fortschritt im Kontaktbogen.
+    /// Batch over local pictures with progress in the contact sheet.
     fn run_batch<F, D>(self: &Rc<Self>, photos: Vec<Photo>, verb: &'static str, op: F, done: D)
     where
         F: Fn(&Path) -> blick_core::Result<()> + Send + Sync + 'static,
@@ -1041,13 +1041,13 @@ impl Window {
                     }
                     Err(_) => this
                         .toasts
-                        .add_toast(adw::Toast::new("Der Vorgang ist abgestürzt.")),
+                        .add_toast(adw::Toast::new("The operation crashed.")),
                 }
             }
         ));
     }
 
-    /// Stil auf die Auswahl anwenden. Es entstehen Kopien, die Originale bleiben.
+    /// Apply a look to the selection. This creates copies, the originals stay.
     fn apply_look(self: &Rc<Self>) {
         let photos = self.editable_photos(false);
         if photos.is_empty() {
@@ -1064,7 +1064,7 @@ impl Window {
                     Ok(l) => l,
                     Err(e) => {
                         this.toasts.add_toast(adw::Toast::new(&format!(
-                            "Stil lässt sich nicht laden: {e:#}"
+                            "Can't load look: {e:#}"
                         )));
                         return;
                     }
@@ -1073,7 +1073,7 @@ impl Window {
                 let render = Arc::new(look.render(1.0));
                 this.run_batch(
                     photos,
-                    "Wende Stil an:",
+                    "Applying look:",
                     move |p| {
                         let dst = blick_core::export::copy_path(p);
                         blick_core::export::save_adjusted(
@@ -1086,8 +1086,8 @@ impl Window {
                     },
                     move |this, _, report| {
                         let text = format!(
-                            "{}, Stil {name}",
-                            report_text("als Kopie gespeichert", &report)
+                            "{}, look {name}",
+                            report_text("saved as copy", &report)
                         );
                         this.toasts.add_toast(adw::Toast::new(&text));
                         this.sheet.refresh();
@@ -1097,7 +1097,7 @@ impl Window {
         });
     }
 
-    /// In den Papierkorb, nie endgültig. Der Toast bietet Rückgängig an.
+    /// To the trash, never permanently. The toast offers Undo.
     fn trash(self: &Rc<Self>) {
         let in_viewer = self.in_viewer();
         let photos = self.target_photos(in_viewer);
@@ -1137,13 +1137,13 @@ impl Window {
                 if in_viewer {
                     this.viewer.after_removal();
                 }
-                let mut text = format!("{} in den Papierkorb verschoben", bilder(trashed.len()));
+                let mut text = format!("{} moved to the trash", picture_count(trashed.len()));
                 if let Some(e) = failed {
-                    text.push_str(&format!(". Nicht alle: {e}"));
+                    text.push_str(&format!(". Not all: {e}"));
                 }
                 let toast = adw::Toast::builder().title(text).timeout(8).build();
                 if !trashed.is_empty() {
-                    toast.set_button_label(Some("Rückgängig"));
+                    toast.set_button_label(Some("Undo"));
                     let w = Rc::downgrade(&this);
                     toast.connect_button_clicked(move |_| {
                         if let Some(this) = w.upgrade() {
@@ -1156,7 +1156,7 @@ impl Window {
         ));
     }
 
-    /// Holt Dateien aus dem Papierkorb zurück an ihren alten Platz.
+    /// Brings files back from the trash to their old place.
     fn restore(self: &Rc<Self>, paths: Vec<PathBuf>) {
         let job = gio::spawn_blocking(move || -> Result<usize, String> {
             let trash = gio::File::for_uri("trash:///");
@@ -1191,10 +1191,10 @@ impl Window {
             self,
             async move {
                 let text = match job.await {
-                    Ok(Ok(n)) if n > 0 => format!("{} wiederhergestellt", bilder(n)),
-                    Ok(Ok(_)) => "Nicht im Papierkorb gefunden. Über den Papierkorb in Dateien wiederherstellen.".into(),
-                    Ok(Err(e)) => format!("Wiederherstellen ging nicht ({e}). Über den Papierkorb in Dateien wiederherstellen."),
-                    Err(_) => "Wiederherstellen ist abgestürzt.".into(),
+                    Ok(Ok(n)) if n > 0 => format!("{} restored", picture_count(n)),
+                    Ok(Ok(_)) => "Not found in the trash. Restore it from the trash in Files.".into(),
+                    Ok(Err(e)) => format!("Restoring failed ({e}). Restore it from the trash in Files."),
+                    Err(_) => "Restoring crashed.".into(),
                 };
                 this.sheet.refresh();
                 this.toasts.add_toast(adw::Toast::new(&text));
@@ -1216,14 +1216,14 @@ impl Window {
             async move {
                 this.nav.pop_to_tag("sheet");
                 crate::upload::run(&this.sheet, client.clone(), paths, &this.toasts).await;
-                // Albumzähler in der Seitenleiste auffrischen.
+                // Refresh the album counter in the sidebar.
                 this.set_client(Some(client));
             }
         ));
     }
 
-    /// Originale aus Immich speichern. Eins per Speichern-Dialog mit seinem
-    /// Dateinamen, mehrere in einen gewählten Ordner, mit Fortschritt im Bogen.
+    /// Save originals from Immich. One through the save dialog with its
+    /// file name, several into a chosen folder, with progress in the sheet.
     fn download(self: &Rc<Self>) {
         let Some(client) = self.ctx.immich() else {
             return;
@@ -1247,7 +1247,7 @@ impl Window {
                             .unwrap_or_else(|_| format!("{id}.jpg"))
                     };
                     let dialog = gtk::FileDialog::builder()
-                        .title("Original speichern")
+                        .title("Save original")
                         .initial_name(name.as_str())
                         .modal(true)
                         .build();
@@ -1257,23 +1257,23 @@ impl Window {
                         return;
                     };
                     this.toasts
-                        .add_toast(adw::Toast::new(&format!("Lade {name} …")));
+                        .add_toast(adw::Toast::new(&format!("Downloading {name} …")));
                     let r =
                         runtime::spawn(
                             async move { Ok(client.download_original(&id, &dst).await?) },
                         )
                         .await;
                     let text = match r {
-                        Ok(_) => format!("{name} gespeichert"),
-                        Err(e) => format!("Herunterladen fehlgeschlagen: {e:#}"),
+                        Ok(_) => format!("{name} saved"),
+                        Err(e) => format!("Download failed: {e:#}"),
                     };
                     this.toasts.add_toast(adw::Toast::new(&text));
                     return;
                 }
 
                 let dialog = gtk::FileDialog::builder()
-                    .title(format!("{} speichern in …", bilder(ids.len())))
-                    .accept_label("Speichern")
+                    .title(format!("Save {} to …", picture_count(ids.len())))
+                    .accept_label("Save")
                     .modal(true)
                     .build();
                 dialog.set_initial_folder(pictures.as_ref());
@@ -1288,7 +1288,7 @@ impl Window {
                 let cancel = Arc::new(AtomicBool::new(false));
                 this.nav.pop_to_tag("sheet");
                 this.sheet.set_busy(cancel.clone());
-                this.sheet.set_progress("Lade", 0, total);
+                this.sheet.set_progress("Downloading", 0, total);
                 this.update_actions();
                 let (mut ok, mut failed) = (0usize, 0usize);
                 for (n, id) in ids.into_iter().enumerate() {
@@ -1307,23 +1307,23 @@ impl Window {
                         Ok(()) => ok += 1,
                         Err(e) => {
                             failed += 1;
-                            tracing::warn!("Herunterladen: {e:#}");
+                            tracing::warn!("download: {e:#}");
                         }
                     }
-                    this.sheet.set_progress("Lade", n + 1, total);
+                    this.sheet.set_progress("Downloading", n + 1, total);
                 }
                 this.sheet.set_idle();
                 this.update_actions();
-                let mut text = format!("{} gespeichert", bilder(ok));
+                let mut text = format!("{} saved", picture_count(ok));
                 if failed > 0 {
-                    text.push_str(&format!(", {failed} fehlgeschlagen"));
+                    text.push_str(&format!(", {failed} failed"));
                 }
                 this.toasts.add_toast(adw::Toast::new(&text));
             }
         ));
     }
 
-    /// Freigabelink in Immich anlegen und in die Zwischenablage legen.
+    /// Create a share link in Immich and put it on the clipboard.
     fn share_link(self: &Rc<Self>) {
         let Some(client) = self.ctx.immich() else {
             return;
@@ -1341,11 +1341,11 @@ impl Window {
                     Ok(url) => {
                         this.win.clipboard().set_text(&url);
                         this.toasts
-                            .add_toast(adw::Toast::new(&format!("Link für {} kopiert", bilder(n))));
+                            .add_toast(adw::Toast::new(&format!("Link for {} copied", picture_count(n))));
                     }
                     Err(e) => this
                         .toasts
-                        .add_toast(adw::Toast::new(&format!("Link nicht angelegt: {e:#}"))),
+                        .add_toast(adw::Toast::new(&format!("Link not created: {e:#}"))),
                 }
             }
         ));
@@ -1361,18 +1361,18 @@ impl Window {
     }
 
     fn about(&self) {
-        // Versionshinweise kommen aus der Metainfo, die als Ressource eingebaut ist.
+        // Release notes come from the metainfo, which is built in as a resource.
         let about = adw::AboutDialog::from_appdata(
             "/io/github/paulhoever/Blick/metainfo.xml",
             Some(env!("CARGO_PKG_VERSION")),
         );
         about.set_version(env!("CARGO_PKG_VERSION"));
-        about.set_comments("Bilder ansehen, drehen, korrigieren und zu Immich hochladen.");
-        about.add_link("Quelltext", "https://github.com/paulhoever/Blick");
+        about.set_comments("View, rotate and adjust pictures and upload them to Immich.");
+        about.add_link("Source code", "https://github.com/paulhoever/Blick");
         about.present(Some(&self.win));
     }
 
-    /// Beim Start: Umgebungsvariablen oder Adresse aus GSettings plus Schlüssel aus dem Schlüsselbund.
+    /// On start: environment variables or the address from GSettings plus the key from the keyring.
     fn connect_immich(self: &Rc<Self>) {
         if let Some((url, key)) = config::env_override() {
             match blick_immich::Client::new(&url, &key) {
@@ -1395,7 +1395,7 @@ impl Window {
                         Err(e) => tracing::warn!("{e}"),
                     },
                     Ok(None) => {}
-                    Err(e) => tracing::warn!("Schlüsselbund: {e:#}"),
+                    Err(e) => tracing::warn!("keyring: {e:#}"),
                 }
             }
         ));
@@ -1428,10 +1428,10 @@ impl Window {
         match albums {
             None => {
                 self.albums
-                    .append(&sidebar_row("network-server-symbolic", "Verbinden …", None));
+                    .append(&sidebar_row("network-server-symbolic", "Connect …", None));
             }
             Some(Err(e)) => {
-                let row = sidebar_row("dialog-warning-symbolic", "Nicht erreichbar", None);
+                let row = sidebar_row("dialog-warning-symbolic", "Unreachable", None);
                 row.set_tooltip_text(Some(&format!("{e:#}")));
                 self.albums.append(&row);
                 self.toasts
@@ -1439,8 +1439,8 @@ impl Window {
             }
             Some(Ok(albums)) => {
                 self.albums
-                    .append(&sidebar_row("image-x-generic-symbolic", "Alle Fotos", None));
-                ids.push((None, "Alle Fotos".to_owned()));
+                    .append(&sidebar_row("image-x-generic-symbolic", "All photos", None));
+                ids.push((None, "All photos".to_owned()));
                 for a in albums {
                     let icon = if a.shared {
                         "folder-publicshare-symbolic"
@@ -1460,7 +1460,7 @@ impl Window {
     }
 }
 
-/// `name` im Ordner, bei Kollision mit „ (2)“, „ (3)“ … vor der Endung.
+/// `name` in the folder, on a collision with " (2)", " (3)" … before the extension.
 fn free_name(dir: &Path, name: &str) -> PathBuf {
     let first = dir.join(name);
     if !first.exists() {
@@ -1482,12 +1482,12 @@ fn free_name(dir: &Path, name: &str) -> PathBuf {
 }
 
 fn report_text(verb: &str, report: &blick_core::batch::Report) -> String {
-    let mut text = format!("{} {verb}", bilder(report.done.len()));
+    let mut text = format!("{} {verb}", picture_count(report.done.len()));
     if let Some((_, e)) = report.failed.first() {
-        text.push_str(&format!(", {} nicht: {e}", report.failed.len()));
+        text.push_str(&format!(", {} failed: {e}", report.failed.len()));
     }
     if report.cancelled > 0 {
-        text.push_str(&format!(", {} abgebrochen", report.cancelled));
+        text.push_str(&format!(", {} cancelled", report.cancelled));
     }
     text
 }

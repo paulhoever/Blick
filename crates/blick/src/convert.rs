@@ -1,12 +1,12 @@
-//! Ordner nach JPEG XL umwandeln, um Platz zu sparen.
+//! Convert a folder to JPEG XL to save space.
 //!
 //! - JPEG: verlustfreie Umpackung (Rekonstruktion bitgenau, rund 20 % kleiner).
 //! - PNG: verlustfrei.
-//! - WebP, HEIC/HEIF: sichtbar verlustfrei (Distanz 1,0), immer umgewandelt, weil viele
-//!   Programme diese Formate nicht lesen; die Datei darf dabei größer werden.
+//! - WebP, HEIC/HEIF: visually lossless (distance 1.0), always converted, because many
+//!   programs can't read these formats; the file may grow in the process.
 //!
-//! EXIF wandert mit. Das Original wird erst angefasst, wenn die neue Datei
-//! geschrieben und gegengelesen ist.
+//! EXIF comes along. The original is only touched once the new file
+//! is written and read back.
 
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -38,7 +38,7 @@ fn kind(path: &Path) -> Option<Kind> {
     }
 }
 
-/// Alle umwandelbaren Bilder unter `dir`, rekursiv. Punkt-Ordner bleiben außen vor.
+/// All convertible images under `dir`, recursive. Dot folders are left out.
 pub fn scan(dir: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     let mut stack = vec![dir.to_owned()];
@@ -66,7 +66,7 @@ pub fn scan(dir: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// Zählung für die Rückfrage: JPEG, PNG, WebP, HEIC.
+/// Count for the confirmation: JPEG, PNG, WebP, HEIC.
 pub fn count_by_kind(paths: &[PathBuf]) -> [usize; 4] {
     let mut n = [0; 4];
     for p in paths {
@@ -88,22 +88,22 @@ fn fail(path: &Path, reason: impl std::fmt::Display) -> CoreError {
     }
 }
 
-/// Einen Eintrag Pixel für den Encoder.
+/// One row of pixels for the encoder.
 enum Raster {
     Eight { data: Vec<u8>, channels: u32 },
     Sixteen { data: Vec<u16>, channels: u32 },
 }
 
-/// Wandelt eine Datei um. `saved` zählt die gesparten Bytes über alle Dateien.
-/// `trash_original`: Original danach in den Papierkorb (sonst bleibt es liegen).
+/// Converts one file. `saved` counts the saved bytes across all files.
+/// `trash_original`: move the original to the trash afterwards (otherwise it stays).
 pub fn convert_file(path: &Path, trash_original: bool, saved: &AtomicU64) -> blick_core::Result<()> {
-    let kind = kind(path).ok_or_else(|| fail(path, "Format wird nicht umgewandelt"))?;
+    let kind = kind(path).ok_or_else(|| fail(path, "format is not converted"))?;
     let target = path.with_extension("jxl");
     if target.exists() {
-        return Err(fail(path, "es gibt schon eine .jxl daneben"));
+        return Err(fail(path, "a .jxl already exists next to it"));
     }
     if blick_core::sidecar::path_for(path).exists() {
-        return Err(fail(path, "hat eine Bearbeitung (Sidecar), bleibt unberührt"));
+        return Err(fail(path, "has an edit (sidecar), left untouched"));
     }
     let src = std::fs::read(path).map_err(|e| fail(path, e))?;
     let jxl = match kind {
@@ -112,14 +112,14 @@ pub fn convert_file(path: &Path, trash_original: bool, saved: &AtomicU64) -> bli
         Kind::Webp => encode_lossy(path, &src, kind)?,
         Kind::Heic => encode_lossy(path, &src, kind)?,
     };
-    // WebP und HEIC sollen immer weg (viele Programme lesen sie nicht), auch wenn JXL
-    // größer ausfällt. Bei JPEG und PNG lohnt sich die Umwandlung nur, wenn sie spart.
+    // WebP and HEIC should always go (many programs can't read them), even if JXL
+    // comes out larger. For JPEG and PNG the conversion only pays off if it saves space.
     let must_convert = matches!(kind, Kind::Webp | Kind::Heic);
     if !must_convert && jxl.len() >= src.len() {
-        return Err(fail(path, "als JPEG XL nicht kleiner"));
+        return Err(fail(path, "not smaller as JPEG XL"));
     }
 
-    // Erst daneben schreiben, dann umbenennen: nie eine halbe .jxl im Ordner.
+    // Write next to it first, then rename: never half a .jxl in the folder.
     let part = target.with_extension("jxl.part");
     std::fs::write(&part, &jxl).map_err(|e| fail(&part, e))?;
     if let Ok(modified) = std::fs::metadata(path).and_then(|m| m.modified())
@@ -129,12 +129,12 @@ pub fn convert_file(path: &Path, trash_original: bool, saved: &AtomicU64) -> bli
     }
     std::fs::rename(&part, &target).map_err(|e| fail(&target, e))?;
 
-    // Größere Ergebnisse (WebP/HEIC) zählen nicht negativ.
+    // Larger results (WebP/HEIC) don't count negative.
     saved.fetch_add((src.len() as u64).saturating_sub(jxl.len() as u64), Ordering::Relaxed);
     if trash_original {
         gio::File::for_path(path)
             .trash(gio::Cancellable::NONE)
-            .map_err(|e| fail(path, format!("Original nicht in den Papierkorb: {e}")))?;
+            .map_err(|e| fail(path, format!("original could not be trashed: {e}")))?;
     }
     Ok(())
 }
@@ -146,11 +146,11 @@ fn encode_jpeg(path: &Path, src: &[u8]) -> blick_core::Result<Vec<u8>> {
         .build()
         .map_err(|e| fail(path, e))?;
     let out = enc.encode_jpeg(src).map_err(|e| fail(path, e))?;
-    // Beweis, dass es umkehrbar ist: das JPEG muss bitgleich zurückkommen.
+    // Proof that it's reversible: the JPEG has to come back bit-identical.
     let dec = decoder_builder().build().map_err(|e| fail(path, e))?;
     match dec.reconstruct(&out).map_err(|e| fail(path, e))?.1 {
         Data::Jpeg(back) if back == src => Ok(out),
-        _ => Err(fail(path, "Rückprobe war nicht bitgleich, bleibt JPEG")),
+        _ => Err(fail(path, "round trip was not bit-identical, stays JPEG")),
     }
 }
 
@@ -166,7 +166,7 @@ fn exif_tiff(path: &Path) -> Option<Vec<u8>> {
         .read_from_container(&mut BufReader::new(file))
         .ok()?;
     let mut tiff = exif.buf().to_vec();
-    // Wir übergeben ausgerichtete Pixel, die Orientierung steht danach auf „normal“.
+    // We pass oriented pixels, so the orientation is "normal" afterwards.
     blick_core::exif::write_orientation(&mut tiff, 1);
     let mut boxed = vec![0u8; 4];
     boxed.append(&mut tiff);
@@ -178,7 +178,7 @@ fn encode_png(path: &Path, src: &[u8]) -> blick_core::Result<Vec<u8>> {
         return Err(fail(path, "animiertes PNG"));
     }
     if has_marker(src, b"iCCP", 65536) {
-        return Err(fail(path, "eigenes Farbprofil, bleibt PNG"));
+        return Err(fail(path, "own color profile, stays PNG"));
     }
     let img = image::load_from_memory_with_format(src, image::ImageFormat::Png)
         .map_err(|e| fail(path, e))?;
@@ -200,7 +200,7 @@ fn encode_png(path: &Path, src: &[u8]) -> blick_core::Result<Vec<u8>> {
             data: img.into_rgba16().into_raw(),
             channels: 4,
         },
-        _ => return Err(fail(path, "Pixelformat wird nicht umgewandelt")),
+        _ => return Err(fail(path, "pixel format is not converted")),
     };
     encode_raster(path, w, h, &raster, true, exif_tiff(path))
 }
@@ -212,10 +212,10 @@ fn encode_lossy(path: &Path, src: &[u8], kind: Kind) -> blick_core::Result<Vec<u
             return Err(fail(path, "animiertes WebP"));
         }
         if has_marker(src, b"ICCP", 4096) {
-            return Err(fail(path, "eigenes Farbprofil, bleibt WebP"));
+            return Err(fail(path, "own color profile, stays WebP"));
         }
     }
-    // Wie in der Anzeige: ausgerichtet, HEIC über glycin.
+    // As in the viewer: oriented, HEIC through glycin.
     let img = blick_core::decode::load_oriented(path)?;
     let (w, h) = (img.width(), img.height());
     let rgba = img.into_rgba8();
@@ -262,19 +262,19 @@ fn encode_raster(
     }
     .map_err(|e| fail(path, e))?;
 
-    // Gegenprobe: lesbar, gleiche Größe; verlustfrei zusätzlich pixelgleich.
+    // Cross-check: readable, same size; for lossless also pixel-identical.
     let dec = decoder_builder().build().map_err(|e| fail(path, e))?;
     match raster {
         Raster::Eight { data, .. } => {
             let (meta, back) = dec.decode_with::<u8>(&out).map_err(|e| fail(path, e))?;
             if (meta.width, meta.height) != (w, h) || (lossless && &back != data) {
-                return Err(fail(path, "Rückprobe stimmt nicht, bleibt unverändert"));
+                return Err(fail(path, "round trip does not match, left unchanged"));
             }
         }
         Raster::Sixteen { data, .. } => {
             let (meta, back) = dec.decode_with::<u16>(&out).map_err(|e| fail(path, e))?;
             if (meta.width, meta.height) != (w, h) || (lossless && &back != data) {
-                return Err(fail(path, "Rückprobe stimmt nicht, bleibt unverändert"));
+                return Err(fail(path, "round trip does not match, left unchanged"));
             }
         }
     }
@@ -286,7 +286,7 @@ mod tests {
     use super::*;
 
     /// `BLICK_JXL_SAMPLES=<ordner> cargo test -p blick convert -- --nocapture`;
-    /// ohne die Variable nichts zu tun. Die Muster liegen nie im Repo.
+    /// nothing to do without the variable. The samples are never in the repo.
     #[test]
     fn samples_roundtrip() {
         let Ok(dir) = std::env::var("BLICK_JXL_SAMPLES") else {
@@ -302,9 +302,9 @@ mod tests {
                     let after = std::fs::metadata(f.with_extension("jxl")).unwrap().len();
                     println!("{}: {before} -> {after} B", f.display());
                 }
-                Err(e) => println!("{}: übersprungen: {e}", f.display()),
+                Err(e) => println!("{}: skipped: {e}", f.display()),
             }
-            assert!(f.exists(), "Original muss bleiben");
+            assert!(f.exists(), "original must stay");
         }
         println!("gespart: {} B", saved.load(Ordering::Relaxed));
     }

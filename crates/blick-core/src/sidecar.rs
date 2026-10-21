@@ -1,23 +1,23 @@
-//! XMP-Sidecar neben einer Datei (`foto.CR3` → `foto.CR3.xmp`, wie darktable).
-//! Blick legt dort Drehungen von Dateien ab, die es nicht selbst schreibt
-//! (RAW, HEIC, AVIF, JPEG XL), und gemerkte Korrekturen. Bei RAW liest Blick
-//! zusätzlich `foto.xmp` von Lightroom.
+//! XMP sidecar next to a file (`photo.CR3` → `photo.CR3.xmp`, like darktable).
+//! Blick stores rotations there for files it doesn't write itself
+//! (RAW, HEIC, AVIF, JPEG XL), plus remembered adjustments. For RAW, Blick
+//! also reads Lightroom's `photo.xmp`.
 
 use std::path::{Path, PathBuf};
 
 use crate::encode::write_atomic;
 use crate::error::{CoreError, Result};
 
-/// `foto.CR3` → `foto.CR3.xmp`. Eindeutig pro Datei, auch wenn eine Kamera
-/// `foto.CR3` und `foto.JPG` nebeneinander ablegt.
+/// `photo.CR3` → `photo.CR3.xmp`. Unique per file, even if a camera
+/// writes `photo.CR3` and `photo.JPG` side by side.
 pub fn path_for(image: &Path) -> PathBuf {
     let mut p = image.as_os_str().to_owned();
     p.push(".xmp");
     PathBuf::from(p)
 }
 
-/// Wo eine Drehung stehen kann: Blicks eigenes Sidecar, bei RAW zusätzlich
-/// `foto.xmp` von Lightroom.
+/// Where a rotation can live: Blick's own sidecar, for RAW also
+/// Lightroom's `photo.xmp`.
 fn candidates(image: &Path) -> Vec<PathBuf> {
     let mut v = vec![path_for(image)];
     if crate::formats::kind_of(image) == Some(crate::formats::Kind::Raw) {
@@ -26,7 +26,7 @@ fn candidates(image: &Path) -> Vec<PathBuf> {
     v
 }
 
-/// Orientation aus dem ersten vorhandenen Sidecar, als Attribut oder Element.
+/// Orientation from the first sidecar that exists, as an attribute or element.
 pub fn read_orientation(image: &Path) -> Option<u16> {
     candidates(image).iter().find_map(|p| {
         let text = std::fs::read_to_string(p).ok()?;
@@ -55,7 +55,7 @@ const TEMPLATE: &str = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Blick">
 </x:xmpmeta>
 "#;
 
-/// Setzt `tiff:Orientation` im Sidecar und lässt alles andere darin stehen.
+/// Sets `tiff:Orientation` in the sidecar and leaves everything else in it alone.
 pub fn write_orientation(image: &Path, value: u16) -> Result<()> {
     let path = path_for(image);
     let text = match std::fs::read_to_string(&path) {
@@ -65,7 +65,7 @@ pub fn write_orientation(image: &Path, value: u16) -> Result<()> {
     };
     let updated = set_orientation(&text, value).ok_or_else(|| CoreError::Metadata {
         path: path.clone(),
-        reason: "kein rdf:Description, in das die Drehung passt".into(),
+        reason: "no rdf:Description the rotation fits into".into(),
     })?;
     write_atomic(&path, updated.as_bytes())
 }
@@ -91,7 +91,7 @@ fn unescape(v: &str) -> String {
         .replace("&amp;", "&")
 }
 
-/// Setzt ein Attribut (oder den Text eines gleichnamigen Elements) im ersten
+/// Sets an attribute (or the text of an element with the same name) in the first
 /// `rdf:Description`; fehlt es, kommt es samt Namespace dazu.
 fn set_attr(xmp: &str, qname: &str, value: &str, ns: (&str, &str)) -> Option<String> {
     let value = escape(value);
@@ -135,21 +135,21 @@ fn get_attr(xmp: &str, qname: &str) -> Option<String> {
     Some(unescape(&rest[..rest.find('<')?]))
 }
 
-// ---------- Bearbeitung ohne die Datei anzufassen ----------
+// ---------- Editing without touching the file ----------
 
 const BLICK_NS: (&str, &str) = ("blick", "https://github.com/paulhoever/Blick/ns/1.0/");
 
-/// Regler und Stil, gespeichert neben dem Bild. Blick wendet sie beim Öffnen an;
-/// andere Programme ignorieren den Namespace.
+/// Sliders and look, saved next to the image. Blick applies them on open;
+/// other programs ignore the namespace.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct EditSettings {
     pub brightness: f32,
     pub contrast: f32,
     pub saturation: f32,
-    /// Pfad des Stils relativ zum Stilordner, oder Name eines mitgelieferten Stils.
+    /// Path of the look relative to the look folder, or the name of a bundled look.
     pub look: Option<String>,
     pub look_strength: f32,
-    /// Zuschnitt im gedrehten Bild, `None` = ganzes Bild.
+    /// Crop in the rotated image, `None` = whole image.
     pub crop: Option<crate::crop::Crop>,
 }
 
@@ -179,8 +179,8 @@ fn format_crop(c: Option<crate::crop::Crop>) -> String {
         .unwrap_or_default()
 }
 
-/// `foto.jpg` → `foto.jpg.xmp`. So kollidiert es nicht mit `foto.xmp` einer
-/// RAW-Datei gleichen Namens (RAW+JPEG aus der Kamera).
+/// `photo.jpg` → `photo.jpg.xmp`. That way it doesn't collide with the `photo.xmp` of a
+/// RAW file with the same name (RAW+JPEG from the camera).
 pub fn edit_path(image: &Path) -> PathBuf {
     path_for(image)
 }
@@ -222,14 +222,14 @@ pub fn write_edit(image: &Path, e: &EditSettings) -> Result<()> {
     for (k, v) in fields {
         text = set_attr(&text, k, &v, BLICK_NS).ok_or_else(|| CoreError::Metadata {
             path: path.clone(),
-            reason: "kein rdf:Description im Sidecar".into(),
+            reason: "no rdf:Description in the sidecar".into(),
         })?;
     }
     write_atomic(&path, text.as_bytes())
 }
 
-/// Nach einer Drehung den gemerkten Zuschnitt mitdrehen. Ohne Zuschnitt
-/// bleibt das Sidecar unberührt.
+/// After a rotation, rotate the remembered crop along. Without a crop
+/// the sidecar is left alone.
 pub fn rotate_crop(image: &Path, rot: crate::rotate::Rotation) -> Result<()> {
     match read_edit(image) {
         Some(mut e) if e.crop.is_some() => {
@@ -241,7 +241,7 @@ pub fn rotate_crop(image: &Path, rot: crate::rotate::Rotation) -> Result<()> {
 }
 
 /// Gemerkte Bearbeitung vergessen, etwa nachdem sie ins Original geschrieben
-/// wurde. Andere Felder im Sidecar (Drehung, fremde Programme) bleiben.
+/// was. Other fields in the sidecar (rotation, other programs) stay.
 pub fn clear_edit(image: &Path) -> Result<()> {
     match read_edit(image) {
         Some(e) if !e.is_identity() => write_edit(
@@ -289,7 +289,7 @@ mod tests {
         write_edit(&img, &e).unwrap();
         assert_eq!(read_edit(&img), Some(e.clone()));
         let e2 = EditSettings {
-            look: Some("Name mit \"Anführung\" & Co".into()),
+            look: Some("Name with \"quotes\" & co".into()),
             ..e
         };
         write_edit(&img, &e2).unwrap();
@@ -305,7 +305,7 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let img = d.path().join("b.png");
         std::fs::write(&img, b"png").unwrap();
-        // Ohne Sidecar: Drehen und Vergessen legen nichts an.
+        // Without a sidecar: rotating and forgetting create nothing.
         rotate_crop(&img, Rotation::Right).unwrap();
         clear_edit(&img).unwrap();
         assert!(!edit_path(&img).exists());
@@ -316,7 +316,7 @@ mod tests {
             w: 0.5,
             h: 0.25,
         };
-        // Nur ein Zuschnitt, keine Regler: wird trotzdem gelesen.
+        // Only a crop, no sliders: still read.
         write_orientation(&img, 1).unwrap();
         let only_crop = EditSettings {
             look_strength: 1.0,
@@ -330,7 +330,7 @@ mod tests {
         let turned = read_edit(&img).unwrap().crop.unwrap();
         let want = crop.rotated(Rotation::Right);
         assert!((turned.x - want.x).abs() < 1e-4 && (turned.h - want.h).abs() < 1e-4);
-        assert_eq!(read_orientation(&img), Some(1), "Drehung im Sidecar bleibt");
+        assert_eq!(read_orientation(&img), Some(1), "rotation in the sidecar stays");
 
         clear_edit(&img).unwrap();
         let cleared = read_edit(&img).unwrap();
@@ -363,7 +363,7 @@ mod tests {
         write_orientation(&jpg, 8).unwrap();
         assert_eq!(read_orientation(&raw), Some(6));
         assert_eq!(read_orientation(&jpg), Some(8));
-        // Lightroom-Sidecar ohne Endung gilt nur für RAW.
+        // A Lightroom sidecar without an extension only counts for RAW.
         std::fs::write(
             d.path().join("bild.xmp"),
             "<tiff:Orientation>3</tiff:Orientation>",

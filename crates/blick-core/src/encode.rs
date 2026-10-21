@@ -1,4 +1,4 @@
-//! Kodieren und sicheres Zurückschreiben, Metadaten werden übernommen.
+//! Encoding and safe write-back, metadata is carried over.
 
 use std::io::{Cursor, Write};
 use std::path::Path;
@@ -20,7 +20,7 @@ pub fn encode(img: &DynamicImage, format: ImageFormat, path: &Path) -> Result<Ve
     let mut out = Cursor::new(Vec::new());
     let res = match format {
         ImageFormat::Jpeg => {
-            // JPEG kann kein Alpha, also vorher nach RGB.
+            // JPEG has no alpha, so convert to RGB first.
             JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY).encode_image(&img.to_rgb8())
         }
         ImageFormat::Gif => return Err(CoreError::Unsupported(path.to_owned())),
@@ -30,8 +30,8 @@ pub fn encode(img: &DynamicImage, format: ImageFormat, path: &Path) -> Result<Ve
     Ok(out.into_inner())
 }
 
-/// Hängt EXIF und ICC-Profil des Originals an die neu kodierten Bytes.
-/// Die Orientierung steht danach auf 1, weil die Pixel schon gedreht sind.
+/// Attaches the original's EXIF and ICC profile to the newly encoded bytes.
+/// Orientation is set to 1 afterwards because the pixels are already rotated.
 pub fn carry_metadata(original: &[u8], encoded: Vec<u8>) -> Vec<u8> {
     let Ok(Some(old)) = DynImage::from_bytes(Bytes::copy_from_slice(original)) else {
         return encoded;
@@ -50,8 +50,8 @@ pub fn carry_metadata(original: &[u8], encoded: Vec<u8>) -> Vec<u8> {
     new.encoder().bytes().to_vec()
 }
 
-/// Schreibt über eine temporäre Datei im selben Ordner und benennt dann um.
-/// Bricht der Vorgang ab, bleibt das Original unangetastet.
+/// Writes through a temporary file in the same folder, then renames.
+/// If the operation aborts, the original stays untouched.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     let dir = path.parent().unwrap_or(Path::new("."));
     let mut tmp = tempfile::NamedTempFile::new_in(dir).map_err(|e| CoreError::io(path, e))?;
@@ -59,8 +59,8 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     tmp.as_file()
         .sync_all()
         .map_err(|e| CoreError::io(path, e))?;
-    // tempfile legt mit 0600 an. Bestehende Dateien behalten ihre Rechte,
-    // neue bekommen die üblichen 0644.
+    // tempfile creates files with 0600. Existing files keep their permissions,
+    // new ones get the usual 0644.
     let perms = match std::fs::metadata(path) {
         Ok(meta) => meta.permissions(),
         Err(_) => std::os::unix::fs::PermissionsExt::from_mode(0o644),

@@ -1,5 +1,5 @@
-//! Entfernte Orte über GIO/gvfs: `smb://`, `sftp://`, `dav(s)://`, `nfs://`, `file://`.
-//! Gelesen wird per Seek und Bereich, bei Vorab-Hashes also nur ein paar hundert KiB.
+//! Remote locations through GIO/gvfs: `smb://`, `sftp://`, `dav(s)://`, `nfs://`, `file://`.
+//! Reads use seek and range, so pre-hashes only touch a few hundred KiB.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -32,7 +32,7 @@ impl Storage for GioStorage {
 
     fn list(&self, cancel: &AtomicBool, on_entry: &mut dyn FnMut(Entry)) -> Result<()> {
         let root = gio::File::for_uri(&self.root_uri);
-        // Beim ersten Zugriff muss der Ort eingehängt sein; das erledigt die App vorher.
+        // On first access the location has to be mounted; the app does that beforehand.
         root.query_info("standard::type", gio::FileQueryInfoFlags::NONE, gio::Cancellable::NONE)
             .map_err(|e| gerr(&self.root_uri, e))?;
         let mut stack = vec![root];

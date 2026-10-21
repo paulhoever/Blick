@@ -1,6 +1,6 @@
-//! Eine tokio-Runtime für alles Netzwerk. GTK hat seinen eigenen Loop im
-//! Hauptthread; tokio-Futures laufen hier und werden von dort nur abgewartet.
-//! Ein `JoinHandle` von tokio lässt sich in jedem Executor awaiten.
+//! One tokio runtime for all networking. GTK has its own loop on the
+//! main thread; tokio futures run here and are only awaited from there.
+//! A tokio `JoinHandle` can be awaited in any executor.
 
 use std::future::Future;
 use std::sync::OnceLock;
@@ -16,11 +16,11 @@ pub fn runtime() -> &'static Runtime {
             .thread_name("blick-net")
             .enable_all()
             .build()
-            .expect("tokio-Runtime ließ sich nicht starten")
+            .expect("tokio runtime failed to start")
     })
 }
 
-/// Startet `fut` auf der tokio-Runtime. Ein Panic im Task wird zum Fehler.
+/// Starts `fut` on the tokio runtime. A panic in the task becomes an error.
 pub async fn spawn<T, F>(fut: F) -> anyhow::Result<T>
 where
     T: Send + 'static,

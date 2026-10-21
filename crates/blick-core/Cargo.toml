@@ -1,6 +1,6 @@
 [package]
 name = "blick-core"
-description = "Bildverarbeitung für Blick: Dekodieren, Korrekturen, Rotation, Cache"
+description = "Image processing for Blick: decoding, adjustments, rotation, cache"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

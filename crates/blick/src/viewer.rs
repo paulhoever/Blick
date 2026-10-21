@@ -1,8 +1,8 @@
-//! Einzelansicht: ein Bild auf Schwarz, Blättern, Bearbeiten, Zuschneiden.
+//! Single view: one picture on black, paging, editing, cropping.
 //!
-//! Beim Öffnen steht sofort das Thumbnail aus dem Kontaktbogen da und wird
-//! ersetzt, sobald die Vorschau in Bildschirmgröße fertig ist. Die Nachbarn
-//! werden im Hintergrund vorgeladen, Blättern trifft also meist den Cache.
+//! On open the thumbnail from the contact sheet is there right away and gets
+//! replaced as soon as the screen-size preview is ready. The neighbors
+//! are preloaded in the background, so paging mostly hits the cache.
 
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
@@ -21,12 +21,12 @@ use crate::edit::EditPanel;
 use crate::looks::{self, Library};
 use crate::photo::{Photo, Source};
 use crate::runtime;
-use crate::video::{Quelle, VideoView};
+use crate::video::{VideoSource, VideoView};
 use crate::zoom::ZoomView;
 
-/// Was für die Anwendung des Stils nötig ist; der gebackene Teil, falls schon da.
+/// What applying the look needs; the baked part, if already there.
 struct RenderJob {
-    /// Zeiger auf den Look und Stärke in Prozent, als Cache-Schlüssel.
+    /// Pointer to the look and strength in percent, as the cache key.
     key: (usize, u32),
     look: Arc<Look>,
     strength: f32,
@@ -50,7 +50,7 @@ pub struct Viewer {
     ctx: Rc<Ctx>,
     toasts: adw::ToastOverlay,
     zoom: Rc<ZoomView>,
-    /// Bild (Zoom) oder Video, je nach aktuellem Eintrag.
+    /// Picture (zoom) or video, depending on the current entry.
     stack: gtk::Stack,
     video: Rc<VideoView>,
     title: adw::WindowTitle,
@@ -62,26 +62,26 @@ pub struct Viewer {
     model: RefCell<Option<gio::ListModel>>,
     index: Cell<u32>,
     generation: Cell<u64>,
-    /// Aktuelle Vorschau ohne Korrekturen, Ausgangspunkt für die Live-Ansicht.
+    /// Current preview without adjustments, starting point for the live view.
     base: RefCell<Option<(Arc<Pixels>, gdk::Texture)>>,
-    /// Zuletzt gerechnete Vorschau mit Korrekturen, für den Vorher-Nachher-Vergleich.
+    /// Last computed preview with adjustments, for the before/after comparison.
     edited: RefCell<Option<gdk::Texture>>,
-    /// Langer Klick hält gerade das Original im Bild.
+    /// A long click is currently holding the original in view.
     showing_original: Cell<bool>,
     original_badge: gtk::Box,
     loading_badge: gtk::Box,
     edit_busy: Cell<bool>,
     edit_dirty: Cell<bool>,
     library: Rc<Library>,
-    /// Gebackener Stil zum aktuellen Look und zur Stärke (Zeiger, Prozent).
+    /// Baked look for the current look and strength (pointer, percent).
     render_cache: RefCell<Option<(usize, u32, Arc<Render>)>>,
-    /// Rahmen zum Zuschneiden, liegt im Zuschneide-Modus über der Bildfläche.
+    /// Frame for cropping, sits over the canvas in crop mode.
     crop_view: Rc<CropView>,
     crop_bar: gtk::Box,
     zoom_bar: gtk::Box,
-    /// Zuschnitt vor dem Öffnen des Rahmens, für Abbrechen.
+    /// Crop before the frame was opened, for cancel.
     crop_before: Cell<Option<Option<blick_core::Crop>>>,
-    /// Maße des Originals (gedreht).
+    /// Dimensions of the original (rotated).
     dims: Cell<Option<(u32, u32)>>,
     on_files_changed: RefCell<Option<Box<dyn Fn()>>>,
 }
@@ -105,12 +105,12 @@ impl Viewer {
         let zoom = ZoomView::new();
         let prev = osd_button(
             "go-previous-symbolic",
-            "Vorheriges Bild (Pfeil links)",
+            "Previous picture (left arrow)",
             gtk::Align::Start,
         );
         let next = osd_button(
             "go-next-symbolic",
-            "Nächstes Bild (Pfeil rechts)",
+            "Next picture (right arrow)",
             gtk::Align::End,
         );
 
@@ -122,8 +122,8 @@ impl Viewer {
         stage.set_child(Some(&stack));
         stage.add_overlay(&prev);
         stage.add_overlay(&next);
-        // Schwebende Leiste im Stil von libadwaita (`toolbar` + `osd`), wie
-        // die Zoomknöpfe in den Mockups der GNOME-Bildanzeige.
+        // Floating bar in the libadwaita style (`toolbar` + `osd`), like
+        // the zoom buttons in the GNOME image viewer mockups.
         let original_badge = gtk::Box::builder()
             .css_classes(["toolbar", "osd"])
             .halign(gtk::Align::Start)
@@ -140,7 +140,7 @@ impl Viewer {
             .build();
         badge_label.add_css_class("heading");
         original_badge.append(&badge_label);
-        // Hinweis, solange die volle Auflösung noch lädt (unten links).
+        // Notice while the full resolution is still loading (bottom left).
         let loading_badge = gtk::Box::builder()
             .css_classes(["toolbar", "osd"])
             .halign(gtk::Align::Start)
@@ -154,7 +154,7 @@ impl Viewer {
         loading_badge.append(&gtk::Spinner::builder().spinning(true).margin_start(6).build());
         loading_badge.append(
             &gtk::Label::builder()
-                .label("Lädt volle Auflösung …")
+                .label("Loading full resolution …")
                 .margin_end(6)
                 .build(),
         );
@@ -166,9 +166,9 @@ impl Viewer {
             .margin_bottom(12)
             .build();
         for (icon, tip, action) in [
-            ("zoom-out-symbolic", "Verkleinern (−)", "viewer.zoom-out"),
-            ("zoom-fit-best-symbolic", "Einpassen (0)", "viewer.zoom-fit"),
-            ("zoom-in-symbolic", "Vergrößern (+)", "viewer.zoom-in"),
+            ("zoom-out-symbolic", "Zoom out (−)", "viewer.zoom-out"),
+            ("zoom-fit-best-symbolic", "Fit to window (0)", "viewer.zoom-fit"),
+            ("zoom-in-symbolic", "Zoom in (+)", "viewer.zoom-in"),
         ] {
             let b = gtk::Button::builder()
                 .icon_name(icon)
@@ -183,7 +183,7 @@ impl Viewer {
         stage.add_overlay(&original_badge);
         stage.add_overlay(&loading_badge);
 
-        // Zuschneiden: das ganze Bild mit Rahmen, unten Abbrechen/Übernehmen.
+        // Crop: the whole image with a frame, Cancel/Apply at the bottom.
         let crop_view = CropView::new();
         stage.add_overlay(&crop_view.widget);
         let crop_bar = gtk::Box::builder()
@@ -195,16 +195,16 @@ impl Viewer {
             .visible(false)
             .build();
         for (label, tip, action, class) in [
-            ("Abbrechen", "Abbrechen (Esc)", "viewer.crop-cancel", None),
+            ("Cancel", "Cancel (Esc)", "viewer.crop-cancel", None),
             (
-                "Ganzes Bild",
-                "Rahmen auf das ganze Bild",
+                "Whole image",
+                "Frame around the whole image",
                 "viewer.crop-reset",
                 None,
             ),
             (
-                "Zuschneiden",
-                "Übernehmen (Enter)",
+                "Crop",
+                "Apply (Enter)",
                 "viewer.crop-apply",
                 Some("suggested-action"),
             ),
@@ -234,7 +234,7 @@ impl Viewer {
         let title = adw::WindowTitle::new("", "");
         let edit_toggle = gtk::ToggleButton::builder()
             .icon_name("document-edit-symbolic")
-            .tooltip_text("Bearbeiten (E)")
+            .tooltip_text("Edit (E)")
             .build();
         edit_toggle
             .bind_property("active", &split, "show-sidebar")
@@ -247,26 +247,26 @@ impl Viewer {
         header.pack_end(&edit_toggle);
         let info_button = gtk::MenuButton::builder()
             .icon_name("dialog-information-symbolic")
-            .tooltip_text("Bildinfos (Alt+Enter)")
+            .tooltip_text("Picture info (Alt+Enter)")
             .build();
         header.pack_end(&info_button);
         let download = gtk::Button::builder()
             .icon_name("folder-download-symbolic")
-            .tooltip_text("Original aus Immich herunterladen")
+            .tooltip_text("Download original from Immich")
             .visible(false)
             .build();
         header.pack_end(&download);
         header.pack_end(
             &gtk::Button::builder()
                 .icon_name("object-rotate-right-symbolic")
-                .tooltip_text("Nach rechts drehen (Strg+R)")
+                .tooltip_text("Rotate right (Ctrl+R)")
                 .action_name("win.rotate-right")
                 .build(),
         );
         header.pack_end(
             &gtk::Button::builder()
                 .icon_name("object-rotate-left-symbolic")
-                .tooltip_text("Nach links drehen (Strg+Umschalt+R)")
+                .tooltip_text("Rotate left (Ctrl+Shift+R)")
                 .action_name("win.rotate-left")
                 .build(),
         );
@@ -276,7 +276,7 @@ impl Viewer {
         view.set_content(Some(&split));
 
         let page = adw::NavigationPage::builder()
-            .title("Bild")
+            .title("Picture")
             .tag("viewer")
             .child(&view)
             .build();
@@ -322,9 +322,9 @@ impl Viewer {
         this.video.connect_error(glib::clone!(
             #[weak]
             this,
-            move |e| this.toast(&format!("Video lässt sich nicht abspielen: {e}"))
+            move |e| this.toast(&format!("Can't play video: {e}"))
         ));
-        // Wer zum Bogen zurückgeht, will kein weiterlaufendes Video im Hintergrund.
+        // Whoever goes back to the sheet doesn't want a video still playing in the background.
         this.page.connect_hidden(glib::clone!(
             #[weak]
             this,
@@ -335,7 +335,7 @@ impl Viewer {
             this,
             move || this.load_full()
         ));
-        // Gezoomt stören die Pfeile über dem Bild; Blättern geht weiter per Tastatur.
+        // When zoomed the arrows get in the way over the picture; paging still works by keyboard.
         this.zoom.connect_zoom_changed(glib::clone!(
             #[weak]
             this,
@@ -345,8 +345,8 @@ impl Viewer {
                 this.next.set_visible(!zoomed && i + 1 < this.len());
             }
         ));
-        // Beim Bearbeiten: linke Maustaste lang drücken zeigt das Original,
-        // Loslassen wieder das bearbeitete Bild.
+        // While editing: holding the left mouse button shows the original,
+        // letting go shows the edited picture again.
         let hold = gtk::GestureLongPress::new();
         hold.set_button(gdk::BUTTON_PRIMARY);
         hold.connect_pressed(glib::clone!(
@@ -415,7 +415,7 @@ impl Viewer {
             this,
             move |_| this.enter_crop()
         ));
-        // Andere Vorlage: Rahmen öffnen, falls zu, und neu einpassen.
+        // Different preset: open the frame if closed, and fit again.
         this.edit.connect_aspect_changed(glib::clone!(
             #[weak]
             this,
@@ -428,9 +428,9 @@ impl Viewer {
             }
         ));
 
-        // Capture: die Kürzel sollen auch greifen, wenn der Fokus noch auf einem
-        // Knopf der Kopfleiste liegt. Hat ein Regler der Bearbeiten-Leiste den
-        // Fokus, bekommt er die Tasten (Pfeile verstellen dort den Wert).
+        // Capture: the shortcuts should work even when focus is still on a
+        // header bar button. If a slider of the edit bar has focus, it gets
+        // the keys (arrows change the value there).
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
         keys.connect_key_pressed(glib::clone!(
@@ -446,7 +446,7 @@ impl Viewer {
                     match key {
                         gdk::Key::Return | gdk::Key::KP_Enter => this.finish_crop(true),
                         gdk::Key::Escape => this.finish_crop(false),
-                        // Pfeile gehören dem Rahmen, solange kein Knopf den Fokus hat.
+                        // Arrows belong to the frame as long as no button has focus.
                         _ if this.crop_bar.focus_child().is_none()
                             && this
                                 .crop_view
@@ -458,7 +458,7 @@ impl Viewer {
                 if this.edit.widget.focus_child().is_some() {
                     return glib::Propagation::Proceed;
                 }
-                // Umschalt stört nicht (auf vielen Layouts liegt „+“ darauf).
+                // Shift doesn't matter (on many layouts "+" sits on it).
                 if mods.intersects(
                     gdk::ModifierType::CONTROL_MASK
                         | gdk::ModifierType::ALT_MASK
@@ -484,7 +484,7 @@ impl Viewer {
                             this.video.step_volume(-1.0);
                             return glib::Propagation::Stop;
                         }
-                        // Zoomen gibt es beim Video nicht.
+                        // There is no zoom for video.
                         gdk::Key::plus
                         | gdk::Key::KP_Add
                         | gdk::Key::equal
@@ -504,7 +504,7 @@ impl Viewer {
                     gdk::Key::minus | gdk::Key::KP_Subtract => this.zoom.zoom_out(),
                     gdk::Key::_0 | gdk::Key::KP_0 => this.zoom.fit(),
                     gdk::Key::_1 | gdk::Key::KP_1 => this.zoom.actual_size(),
-                    // Leertaste: Schnellblick wieder schließen, zurück zum Bogen.
+                    // Space: close the quick look again, back to the sheet.
                     gdk::Key::space => {
                         let _ = this.page.activate_action("navigation.pop", None);
                     }
@@ -523,7 +523,7 @@ impl Viewer {
         ));
         this.page.add_controller(keys);
 
-        // Zoomknöpfe unten rechts: dieselben Wege wie +, − und 0.
+        // Zoom buttons bottom right: same paths as +, − and 0.
         let actions = gio::SimpleActionGroup::new();
         for (name, f) in [
             ("zoom-in", ZoomView::zoom_in as fn(&ZoomView)),
@@ -561,7 +561,7 @@ impl Viewer {
             this,
             move |_| this.download_original()
         ));
-        // Beim Öffnen den Fokus aufs Bild, nicht auf den Zurück-Knopf.
+        // On open, focus goes to the picture, not the back button.
         this.zoom.widget.set_focusable(true);
         this.page.connect_shown(glib::clone!(
             #[weak]
@@ -578,7 +578,7 @@ impl Viewer {
             move |p| this.fill_info(p)
         ));
 
-        // Im Vollbild blendet sich die Kopfleiste aus und kommt bei Mausbewegung zurück.
+        // In fullscreen the header bar hides and comes back on mouse movement.
         let motion = gtk::EventControllerMotion::new();
         motion.connect_motion(glib::clone!(
             #[weak]
@@ -589,7 +589,7 @@ impl Viewer {
         this
     }
 
-    /// Nach dem Löschen: das nächste Bild zeigen oder zurück zum Bogen, wenn keins mehr da ist.
+    /// After deleting: show the next picture, or go back to the sheet if none is left.
     pub fn after_removal(self: &Rc<Self>) {
         let n = self.len();
         if n == 0 {
@@ -617,7 +617,7 @@ impl Viewer {
                         .unwrap_or_else(|_| format!("{id}.jpg"))
                 };
                 let dialog = gtk::FileDialog::builder()
-                    .title("Original speichern")
+                    .title("Save original")
                     .initial_name(name.as_str())
                     .modal(true)
                     .build();
@@ -630,21 +630,21 @@ impl Viewer {
                 let Ok(Some(dst)) = dialog.save_future(Some(&root)).await.map(|f| f.path()) else {
                     return;
                 };
-                this.toast(&format!("Lade {name} …"));
+                this.toast(&format!("Downloading {name} …"));
                 let r =
                     runtime::spawn(async move { Ok(client.download_original(&id, &dst).await?) })
                         .await;
                 match r {
                     Ok(bytes) => {
-                        this.toast(&format!("{name} gespeichert ({} MB)", bytes / 1_000_000))
+                        this.toast(&format!("{name} saved ({} MB)", bytes / 1_000_000))
                     }
-                    Err(e) => this.toast(&format!("Herunterladen fehlgeschlagen: {e:#}")),
+                    Err(e) => this.toast(&format!("Download failed: {e:#}")),
                 }
             }
         ));
     }
 
-    /// Regler und Stil als `<bild>.xmp` neben dem Bild ablegen.
+    /// Save sliders and look as `<image>.xmp` next to the picture.
     fn remember(self: &Rc<Self>) {
         let Some(photo) = self.current() else { return };
         let Some(path) = photo.path().map(Path::to_owned) else {
@@ -670,12 +670,12 @@ impl Viewer {
             async move {
                 match task.await {
                     Ok(Ok(())) => {
-                        this.toast("Gemerkt. Beim nächsten Öffnen ist die Bearbeitung wieder da.");
-                        // Der Kontaktbogen zeigt gemerkte Bearbeitungen, also neues Thumbnail.
+                        this.toast("Remembered. The edit will be back the next time you open it.");
+                        // The contact sheet shows remembered edits, so it needs a new thumbnail.
                         photo.reload(&this.ctx);
                     }
-                    Ok(Err(e)) => this.toast(&format!("Nicht gemerkt: {e}")),
-                    Err(_) => this.toast("Nicht gemerkt."),
+                    Ok(Err(e)) => this.toast(&format!("Not remembered: {e}")),
+                    Err(_) => this.toast("Not remembered."),
                 }
             }
         ));
@@ -698,7 +698,7 @@ impl Viewer {
         ));
     }
 
-    /// Gemerkte Einstellungen anwenden, falls es ein Sidecar gibt.
+    /// Apply remembered settings, if there is a sidecar.
     fn load_sidecar(self: &Rc<Self>, path: PathBuf, generation: u64) {
         let task = gio::spawn_blocking(move || blick_core::sidecar::read_edit(&path));
         glib::spawn_future_local(glib::clone!(
@@ -724,10 +724,10 @@ impl Viewer {
                             this.edit.set_look(Some(look))
                         }
                         Ok(_) => {}
-                        Err(err) => this.toast(&format!("Gemerkter Stil fehlt: {err:#}")),
+                        Err(err) => this.toast(&format!("Remembered look is missing: {err:#}")),
                     },
                     None if e.look.is_some() => {
-                        this.toast("Der gemerkte Stil ist nicht mehr in der Bibliothek.")
+                        this.toast("The remembered look is no longer in the library.")
                     }
                     None => this.edit.set_look(None),
                 }
@@ -770,12 +770,12 @@ impl Viewer {
                 Some(p) => {
                     if let Ok(m) = std::fs::metadata(p) {
                         rows.push((
-                            "Dateigröße",
-                            format!("{:.1} MB", m.len() as f64 / 1e6).replace('.', ","),
+                            "File size",
+                            format!("{:.1} MB", m.len() as f64 / 1e6),
                         ));
                     }
                 }
-                None => rows.push(("Quelle", "Immich (Fassung zum Abspielen)".to_owned())),
+                None => rows.push(("Source", "Immich (playback version)".to_owned())),
             }
             for (i, (k, v)) in rows.into_iter().enumerate() {
                 let key = gtk::Label::builder().label(k).xalign(1.0).build();
@@ -792,7 +792,7 @@ impl Viewer {
         }
         let Some(path) = photo.path().map(Path::to_owned) else {
             let l = gtk::Label::builder()
-                .label("Liegt in Immich")
+                .label("Lives in Immich")
                 .xalign(0.0)
                 .build();
             l.add_css_class("dim-label");
@@ -899,7 +899,7 @@ impl Viewer {
 
         self.title.set_title(&photo.title());
         self.title
-            .set_subtitle(&format!("{} von {}", index + 1, self.len()));
+            .set_subtitle(&format!("{} of {}", index + 1, self.len()));
         self.zoom.show(photo.texture().as_ref(), None);
         self.zoom
             .picture()
@@ -920,15 +920,15 @@ impl Viewer {
             self.zoom_bar.set_visible(false);
             self.stack.set_visible_child_name("video");
             let quelle = match photo.source() {
-                Source::Local(path) => Some(Quelle::Datei(path.clone())),
-                Source::Remote { id, .. } => self.ctx.immich().map(|c| Quelle::Http {
+                Source::Local(path) => Some(VideoSource::File(path.clone())),
+                Source::Remote { id, .. } => self.ctx.immich().map(|c| VideoSource::Http {
                     url: c.playback_url(id),
                     api_key: c.api_key().to_owned(),
                 }),
             };
             match quelle {
                 Some(q) => self.video.open(q, &photo.title()),
-                None => self.toast("Keine Verbindung zu Immich."),
+                None => self.toast("No connection to Immich."),
             }
             if local {
                 self.prefetch(index);
@@ -956,8 +956,8 @@ impl Viewer {
         }
     }
 
-    /// Vorschaugröße: die größere Fensterkante in Gerätepixeln, auf 512 gerundet,
-    /// damit kleine Größenänderungen den Cache nicht entwerten.
+    /// Preview size: the larger window edge in device pixels, rounded to 512,
+    /// so small resizes don't invalidate the cache.
     fn target_px(&self) -> u32 {
         let (w, h, scale) = match self.page.root() {
             Some(root) => (root.width(), root.height(), self.page.scale_factor()),
@@ -990,8 +990,8 @@ impl Viewer {
                 }
                 match result {
                     Ok(Ok(px)) => this.set_base(px),
-                    Ok(Err(e)) => this.toast(&format!("Bild lässt sich nicht öffnen: {e}")),
-                    Err(_) => this.toast("Bild lässt sich nicht öffnen."),
+                    Ok(Err(e)) => this.toast(&format!("Can't open picture: {e}")),
+                    Err(_) => this.toast("Can't open picture."),
                 }
             }
         ));
@@ -1023,16 +1023,16 @@ impl Viewer {
                         this.zoom.upgrade(&texture(px));
                         this.load_remote_full(id_full, preview_edge, generation);
                     }
-                    Err(e) => this.toast(&format!("Vorschau von Immich fehlt: {e:#}")),
+                    Err(e) => this.toast(&format!("Immich preview missing: {e:#}")),
                 }
             }
         ));
     }
 
-    /// Nach der Vorschau die volle Auflösung. Erst `size=fullsize`: Bei JPEG &
-    /// Co. leitet Immich aufs Original um. HEIC und RAW bekommt man so nur,
-    /// wenn der Server Fullsize-Bilder erzeugt; sonst kommt die Vorschau zurück,
-    /// und Blick holt das Original und dekodiert es selbst (glycin, rawler).
+    /// After the preview, the full resolution. First `size=fullsize`: for JPEG and
+    /// the like Immich redirects to the original. For HEIC and RAW you only get it
+    /// if the server generates fullsize images; otherwise the preview comes back,
+    /// and Blick fetches the original and decodes it itself (glycin, rawler).
     fn load_remote_full(self: &Rc<Self>, id: String, preview_edge: u32, generation: u64) {
         let Some(client) = self.ctx.immich() else {
             return;
@@ -1040,14 +1040,14 @@ impl Viewer {
         let target = self.target_px();
         let tmp_dir = glib::user_cache_dir()
             .join("blick")
-            .join("immich-originale");
+            .join("immich-originals");
         glib::spawn_future_local(glib::clone!(
             #[weak(rename_to = this)]
             self,
             async move {
                 let current = |this: &Rc<Self>| this.generation.get() == generation;
                 this.loading_badge.set_visible(true);
-                // Blendet bei jedem Ausstieg aus, sofern kein neueres Bild übernommen hat.
+                // Hides on every exit, unless a newer picture has taken over.
                 struct HideOnDrop(Rc<Viewer>, u64);
                 impl Drop for HideOnDrop {
                     fn drop(&mut self) {
@@ -1079,7 +1079,7 @@ impl Viewer {
                 let px = match decoded {
                     Some(px) => px,
                     None => {
-                        // Original in den Cache laden, dort dekodieren, dann weg damit.
+                        // Load the original into the cache, decode it there, then drop it.
                         let c = client.clone();
                         let i = id.clone();
                         let dir = tmp_dir.clone();
@@ -1104,7 +1104,7 @@ impl Viewer {
                         let file = match file {
                             Ok(f) => f,
                             Err(e) => {
-                                tracing::warn!("Original {id}: {e:#}");
+                                tracing::warn!("original {id}: {e:#}");
                                 return;
                             }
                         };
@@ -1118,7 +1118,7 @@ impl Viewer {
                         match decoded {
                             Ok(Ok(px)) if px.width.max(px.height) > preview_edge => px,
                             Ok(Err(e)) => {
-                                tracing::warn!("Original {id} nicht lesbar: {e}");
+                                tracing::warn!("original {id} unreadable: {e}");
                                 return;
                             }
                             _ => return,
@@ -1128,8 +1128,8 @@ impl Viewer {
                 if !current(&this) {
                     return;
                 }
-                tracing::debug!("Immich {id}: volle Auflösung {}x{}", px.width, px.height);
-                // Erst eine scharfe Fassung in Bildschirmgröße, dann das Original für den Zoom.
+                tracing::debug!("Immich {id}: full resolution {}x{}", px.width, px.height);
+                // First a sharp version at screen size, then the original for zooming.
                 let full = Arc::new(px);
                 let f = full.clone();
                 let fit =
@@ -1146,8 +1146,8 @@ impl Viewer {
         ));
     }
 
-    /// Volle Auflösung fürs Zoomen. Mit Bearbeitung bleibt die bearbeitete
-    /// Vorschau stehen, sonst sähe man beim Hineinzoomen das unbearbeitete Original.
+    /// Full resolution for zooming. With edits the edited preview stays
+    /// in place, otherwise you'd see the unedited original when zooming in.
     fn load_full(self: &Rc<Self>) {
         let Some(path) = self.current().and_then(|p| p.path().map(Path::to_owned)) else {
             return;
@@ -1162,7 +1162,7 @@ impl Viewer {
             async move {
                 let r = task.await;
                 if let Ok(Err(e)) = &r {
-                    tracing::warn!("Volle Auflösung: {e}");
+                    tracing::warn!("full resolution: {e}");
                 }
                 if let Ok(Ok(px)) = r
                     && this.generation.get() == generation
@@ -1174,7 +1174,7 @@ impl Viewer {
         ));
     }
 
-    /// Die zwei Bilder vorwärts und eins zurück, in dieser Reihenfolge.
+    /// The two pictures ahead and one back, in that order.
     fn prefetch(&self, index: u32) {
         let target = self.target_px();
         for i in [index as i64 + 1, index as i64 - 1, index as i64 + 2] {
@@ -1228,10 +1228,10 @@ impl Viewer {
         }
     }
 
-    /// Wendet die Regler auf die Vorschau an. Läuft schon eine Berechnung,
-    /// wird danach genau einmal mit dem neuesten Stand nachgerechnet.
-    /// Gebackenen Stil holen oder backen lassen. Backen kostet bis zu ~60 ms
-    /// (große HaldCLUT), darum nur bei geändertem Look oder geänderter Stärke.
+    /// Applies the sliders to the preview. If a computation is already running,
+    /// it recomputes exactly once afterwards with the latest state.
+    /// Fetch the baked look or have it baked. Baking costs up to ~60 ms
+    /// (big HaldCLUT), so only when the look or strength changed.
     fn render_job(&self) -> Option<RenderJob> {
         let (look, strength) = self.edit.look()?;
         let key = (
@@ -1258,8 +1258,8 @@ impl Viewer {
             .unwrap_or(0)
     }
 
-    /// Wendet Regler und Stil auf die Vorschau an. Läuft schon eine Berechnung,
-    /// wird danach genau einmal mit dem neuesten Stand nachgerechnet.
+    /// Applies sliders and look to the preview. If a computation is already running,
+    /// it recomputes exactly once afterwards with the latest state.
     fn schedule_edit_preview(self: &Rc<Self>) {
         let Some((px, tex)) = self.base.borrow().clone() else {
             return;
@@ -1303,8 +1303,8 @@ impl Viewer {
                     if let Some(r) = render {
                         this.render_cache.replace(Some(r));
                     }
-                    // Stand passt nicht mehr (Rahmen auf/zu, alles zurückgesetzt):
-                    // das Nachrechnen unten holt es ein.
+                    // State no longer matches (frame opened/closed, everything reset):
+                    // the recompute below catches up.
                     let fits = this.preview_crop() == crop && !this.preview_is_plain();
                     if this.generation.get() == generation && fits {
                         let tex = texture(px);
@@ -1335,7 +1335,7 @@ impl Viewer {
                     Ok(look) => {
                         if !look.ignored.is_empty() {
                             this.toast(&format!(
-                                "{}: nicht übernommen: {}",
+                                "{}: not applied: {}",
                                 look.name,
                                 look.ignored.join(", ")
                             ));
@@ -1343,7 +1343,7 @@ impl Viewer {
                         this.split.set_show_sidebar(true);
                         this.edit.set_look(Some(look));
                     }
-                    Err(e) => this.toast(&format!("Stil lässt sich nicht laden: {e:#}")),
+                    Err(e) => this.toast(&format!("Can't load look: {e:#}")),
                 }
             });
         });
@@ -1351,14 +1351,14 @@ impl Viewer {
 
     fn import_looks(self: &Rc<Self>) {
         let filter = gtk::FileFilter::new();
-        filter.set_name(Some("Stile (.cube, .png, .xmp)"));
+        filter.set_name(Some("Looks (.cube, .png, .xmp)"));
         for p in ["*.cube", "*.CUBE", "*.png", "*.PNG", "*.xmp", "*.XMP"] {
             filter.add_pattern(p);
         }
         let filters = gio::ListStore::new::<gtk::FileFilter>();
         filters.append(&filter);
         let dialog = gtk::FileDialog::builder()
-            .title("Stile importieren")
+            .title("Import looks")
             .filters(&filters)
             .modal(true)
             .build();
@@ -1389,16 +1389,16 @@ impl Viewer {
     pub async fn run_import(&self, paths: Vec<PathBuf>) {
         let report = gio::spawn_blocking(move || looks::import(&paths)).await;
         let Ok(report) = report else {
-            self.toast("Import ist abgestürzt.");
+            self.toast("Import crashed.");
             return;
         };
         self.library.reload();
-        let mut text = format!("{} Stile importiert", report.imported);
+        let mut text = format!("{} looks imported", report.imported);
         if !report.failed.is_empty() {
             for (p, e) in &report.failed {
-                tracing::warn!("Stil {}: {e}", p.display());
+                tracing::warn!("look {}: {e}", p.display());
             }
-            text.push_str(&format!(", {} nicht lesbar", report.failed.len()));
+            text.push_str(&format!(", {} unreadable", report.failed.len()));
         }
         if !report.ignored.is_empty() {
             let names: Vec<String> = report
@@ -1406,13 +1406,13 @@ impl Viewer {
                 .iter()
                 .map(|(n, f)| format!("{n} ({})", f.join(", ")))
                 .collect();
-            text.push_str(&format!(". Nicht übernommen: {}", names.join("; ")));
+            text.push_str(&format!(". Not applied: {}", names.join("; ")));
         }
         self.toasts
             .add_toast(adw::Toast::builder().title(text).timeout(8).build());
     }
 
-    /// Regler und Stil als `.cube`. Körnung und Vignette kann kein LUT-Format.
+    /// Sliders and look as `.cube`. Grain and vignette can't be expressed in any LUT format.
     fn export_lut(self: &Rc<Self>) {
         let adj = self.edit.adjustments();
         let look = self.edit.look();
@@ -1420,7 +1420,7 @@ impl Viewer {
             .as_ref()
             .map_or("Blick".to_owned(), |(l, _)| l.name.clone());
         let dialog = gtk::FileDialog::builder()
-            .title("Als LUT exportieren")
+            .title("Export as LUT")
             .initial_name(format!("{name}.cube"))
             .modal(true)
             .build();
@@ -1440,13 +1440,13 @@ impl Viewer {
                 });
                 match job.await {
                     Ok(Ok(path)) => this.toast(&format!(
-                        "Gespeichert als {}",
+                        "Saved as {}",
                         path.file_name()
                             .map(|n| n.to_string_lossy().into_owned())
                             .unwrap_or_default()
                     )),
-                    Ok(Err(e)) => this.toast(&format!("Nicht gespeichert: {e}")),
-                    Err(_) => this.toast("Nicht gespeichert."),
+                    Ok(Err(e)) => this.toast(&format!("Not saved: {e}")),
+                    Err(_) => this.toast("Not saved."),
                 }
             }
         ));
@@ -1483,8 +1483,8 @@ impl Viewer {
                             adj,
                             render.as_deref(),
                         )?;
-                        // Steckt die Bearbeitung jetzt im Original, darf ein
-                        // gemerkter Stand sie nicht ein zweites Mal anwenden.
+                        // If the edit now lives in the original, a remembered
+                        // state must not apply it a second time.
                         if src == dst {
                             blick_core::sidecar::clear_edit(&src)?;
                         }
@@ -1497,7 +1497,7 @@ impl Viewer {
                             .file_name()
                             .map(|n| n.to_string_lossy().into_owned())
                             .unwrap_or_default();
-                        this.toast(&format!("Gespeichert als {name}"));
+                        this.toast(&format!("Saved as {name}"));
                         if overwrite {
                             this.forget(&photo, &src);
                             this.go(this.index.get());
@@ -1506,8 +1506,8 @@ impl Viewer {
                             f();
                         }
                     }
-                    Ok(Err(e)) => this.toast(&format!("Nicht gespeichert: {e}")),
-                    Err(_) => this.toast("Nicht gespeichert: der Speichervorgang ist abgestürzt."),
+                    Ok(Err(e)) => this.toast(&format!("Not saved: {e}")),
+                    Err(_) => this.toast("Not saved: the save operation crashed."),
                 }
             }
         ));
@@ -1515,19 +1515,19 @@ impl Viewer {
 
     async fn confirm_overwrite(&self, name: &str) -> bool {
         let dialog = adw::AlertDialog::new(
-            Some("Original überschreiben?"),
+            Some("Overwrite original?"),
             Some(&format!(
-                "Zuschnitt und Korrekturen werden fest in {name} geschrieben. Das lässt sich nicht rückgängig machen."
+                "Crop and adjustments will be written into {name} for good. This can't be undone."
             )),
         );
-        dialog.add_responses(&[("cancel", "Abbrechen"), ("overwrite", "Überschreiben")]);
+        dialog.add_responses(&[("cancel", "Cancel"), ("overwrite", "Overwrite")]);
         dialog.set_response_appearance("overwrite", adw::ResponseAppearance::Destructive);
         dialog.set_default_response(Some("cancel"));
         dialog.set_close_response("cancel");
         dialog.choose_future(Some(&self.page)).await == "overwrite"
     }
 
-    /// Caches für eine geänderte Datei verwerfen und das Thumbnail neu holen.
+    /// Discard caches for a changed file and fetch the thumbnail again.
     fn forget(&self, photo: &Photo, path: &Path) {
         self.ctx.previews.remove_where(|k| k.0 == path);
         photo.reload(&self.ctx);
@@ -1559,8 +1559,8 @@ impl Viewer {
                             this.go(this.index.get());
                         }
                     }
-                    Ok(Err(e)) => this.toast(&format!("Nicht gedreht: {e}")),
-                    Err(_) => this.toast("Nicht gedreht: der Vorgang ist abgestürzt."),
+                    Ok(Err(e)) => this.toast(&format!("Not rotated: {e}")),
+                    Err(_) => this.toast("Not rotated: the operation crashed."),
                 }
             }
         ));
@@ -1570,13 +1570,13 @@ impl Viewer {
         self.toasts.add_toast(adw::Toast::new(text));
     }
 
-    // --- Zuschneiden ---------------------------------------------------------
+    // --- Cropping ---------------------------------------------------------
 
     fn cropping(&self) -> bool {
         self.crop_view.widget.is_visible()
     }
 
-    /// Zuschnitt für die Vorschau: im Rahmen-Modus das ganze Bild.
+    /// Crop for the preview: in frame mode the whole image.
     fn preview_crop(&self) -> Option<blick_core::Crop> {
         if self.cropping() {
             None
@@ -1585,12 +1585,12 @@ impl Viewer {
         }
     }
 
-    /// Vorschau braucht keine Rechnung: nichts zu schneiden, keine Farben.
+    /// The preview needs no computation: nothing to crop, no colors.
     fn preview_is_plain(&self) -> bool {
         self.edit.colors_identity() && self.preview_crop().is_none()
     }
 
-    /// Vorschau dorthin, wo sie gerade zu sehen ist.
+    /// Preview to wherever it is currently visible.
     fn show_preview(&self, tex: &gdk::Texture) {
         if self.cropping() {
             self.crop_view.set_texture(Some(tex));
@@ -1599,7 +1599,7 @@ impl Viewer {
         }
     }
 
-    /// Bezugsgröße für den Zoom: das Original, nach dem Zuschnitt.
+    /// Reference size for the zoom: the original, after the crop.
     fn update_natural(&self) {
         if let Some((w, h)) = self.dims.get() {
             let (w, h) = match self.edit.crop() {
@@ -1634,8 +1634,8 @@ impl Viewer {
         ] {
             w.set_visible(false);
         }
-        // Ohne bisherigen Zuschnitt gleich in der gewählten Vorlage einrahmen.
-        // Ein gemerkter Zuschnitt bleibt, wie er ist, bis man zieht.
+        // Without a previous crop, frame it in the chosen preset right away.
+        // A remembered crop stays as it is until you drag.
         let (a, portrait) = self.edit.aspect();
         let fit = self.edit.crop().is_none();
         self.crop_view.set_aspect(a, portrait, fit);
@@ -1668,7 +1668,7 @@ impl Viewer {
     }
 }
 
-/// Regler und Stil in eine 33³-LUT. Die Regler arbeiten auf 8 Bit, daher der Umweg über ein Pixel.
+/// Sliders and look into a 33³ LUT. The sliders work on 8 bit, hence the detour through one pixel.
 fn bake_lut(adj: Adjustments, look: Option<(Arc<Look>, f32)>) -> blick_core::look::Lut3d {
     let render = look.map(|(l, s)| l.render(s));
     blick_core::look::Lut3d::from_fn(blick_core::look::BAKE_SIZE, move |c| {

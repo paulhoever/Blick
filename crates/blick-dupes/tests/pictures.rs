@@ -5,7 +5,7 @@ use blick_dupes::hashdb::HashDb;
 use blick_dupes::{LocalStorage, Mode, Options, Scanner, SourceSpec};
 use image::{DynamicImage, Rgb, RgbImage, imageops::FilterType};
 
-/// Bild mit Struktur, abhängig vom Samen: Farbflächen und ein Verlauf.
+/// Image with structure, depending on the seed: color areas and a gradient.
 fn scene(seed: u32, w: u32, h: u32) -> RgbImage {
     let mut s = seed.wrapping_mul(2654435761).wrapping_add(12345);
     let mut rnd = move || {

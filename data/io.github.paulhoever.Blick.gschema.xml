@@ -12,19 +12,19 @@
     </key>
     <key name="last-folder" type="s">
       <default>""</default>
-      <summary>Zuletzt geöffneter Ordner</summary>
+      <summary>Last opened folder</summary>
     </key>
     <key name="library-roots" type="as">
       <default>[]</default>
-      <summary>Ordner, die rekursiv als Bibliothek durchsucht werden</summary>
+      <summary>Folders searched recursively as the library</summary>
     </key>
     <key name="include-subfolders" type="b">
       <default>true</default>
-      <summary>Kontaktbogen zeigt auch die Bilder aus Unterordnern</summary>
+      <summary>Contact sheet also shows pictures from subfolders</summary>
     </key>
     <key name="library-initialized" type="b">
       <default>false</default>
-      <summary>Bilder-Ordner wurde beim ersten Start in die Bibliothek aufgenommen</summary>
+      <summary>Pictures folder was added to the library on first start</summary>
     </key>
     <key name="color-scheme" type="s">
       <choices>
@@ -33,40 +33,40 @@
         <choice value="dark"/>
       </choices>
       <default>"default"</default>
-      <summary>Farbschema: der Systemeinstellung folgen, hell oder dunkel</summary>
+      <summary>Color scheme: follow the system setting, light or dark</summary>
     </key>
     <key name="immich-expanded" type="b">
       <default>true</default>
-      <summary>Immich-Alben in der Seitenleiste ausgeklappt</summary>
+      <summary>Immich albums expanded in the sidebar</summary>
     </key>
     <key name="immich-url" type="s">
       <default>""</default>
-      <summary>Adresse des Immich-Servers</summary>
-      <description>Der API-Schlüssel liegt nicht hier, sondern im Schlüsselbund.</description>
+      <summary>Address of the Immich server</summary>
+      <description>The API key isn't stored here but in the keyring.</description>
     </key>
     <key name="dupes-locations" type="as">
       <default>[]</default>
-      <summary>Orte der Dublettensuche, „R|“ oder „N|“ vor Pfad oder Adresse (Referenz oder normal)</summary>
+      <summary>Duplicate search locations, "R|" or "N|" before path or address (reference or normal)</summary>
     </key>
     <key name="dupes-immich" type="b">
       <default>false</default>
-      <summary>Immich-Bibliothek in die Dublettensuche einbeziehen</summary>
+      <summary>Include the Immich library in the duplicate search</summary>
     </key>
     <key name="dupes-mode" type="i">
       <default>0</default>
-      <summary>Suchart der Dublettensuche (0 Bilder, 1 Inhalt, 2 Namen, 3 Ordner)</summary>
+      <summary>Duplicate search mode (0 pictures, 1 content, 2 names, 3 folders)</summary>
     </key>
     <key name="dupes-threshold" type="i">
       <default>95</default>
-      <summary>Mindestähnlichkeit der Dublettensuche in Prozent</summary>
+      <summary>Minimum similarity of the duplicate search in percent</summary>
     </key>
     <key name="dupes-any-aspect" type="b">
       <default>false</default>
-      <summary>Dublettensuche: auch unterschiedliche Seitenverhältnisse</summary>
+      <summary>Duplicate search: allow different aspect ratios too</summary>
     </key>
     <key name="dupes-rotation" type="b">
       <default>false</default>
-      <summary>Dublettensuche: auch gedrehte Bilder</summary>
+      <summary>Duplicate search: rotated pictures too</summary>
     </key>
   </schema>
 </schemalist>

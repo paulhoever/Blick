@@ -1,7 +1,7 @@
-//! 3D-LUT mit trilinearer Interpolation.
+//! 3D LUT with trilinear interpolation.
 
-/// Würfel mit `size³` Einträgen, Werte 0..=1. Reihenfolge wie in `.cube` und
-/// HaldCLUT: Rot läuft am schnellsten, dann Grün, dann Blau.
+/// Cube with `size³` entries, values 0..=1. Order as in `.cube` and
+/// HaldCLUT: red runs fastest, then green, then blue.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Lut3d {
     pub size: usize,
@@ -22,7 +22,7 @@ impl Lut3d {
         Self { size, data }
     }
 
-    /// Rechnet `f` an jedem Gitterpunkt aus.
+    /// Evaluates `f` at every grid point.
     pub fn from_fn(size: usize, f: impl Fn([f32; 3]) -> [f32; 3] + Sync) -> Self {
         use rayon::prelude::*;
         let id = Self::identity(size);
@@ -71,7 +71,7 @@ impl Lut3d {
         lerp(lerp(c00, c10, f[1]), lerp(c01, c11, f[1]), f[2])
     }
 
-    /// Auf eine andere Gittergröße umrechnen, etwa eine 144³-HaldCLUT auf 33³.
+    /// Resample to another grid size, for example a 144³ HaldCLUT to 33³.
     pub fn resampled(&self, size: usize) -> Self {
         if size == self.size {
             return self.clone();
@@ -79,7 +79,7 @@ impl Lut3d {
         Self::from_fn(size, |c| self.sample(c))
     }
 
-    /// Als `.cube`-Text, lesbar von Resolve, Photoshop, Premiere, darktable.
+    /// As `.cube` text, readable by Resolve, Photoshop, Premiere, darktable.
     pub fn to_cube(&self, title: &str) -> String {
         let mut s = format!(
             "TITLE \"{}\"\nLUT_3D_SIZE {}\n",

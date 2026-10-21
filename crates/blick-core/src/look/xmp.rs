@@ -1,9 +1,9 @@
-//! Lightroom- und Camera-Raw-Presets (`.xmp` mit `crs:`-Feldern).
+//! Lightroom and Camera Raw presets (`.xmp` with `crs:` fields).
 //!
-//! Adobe veröffentlicht für diese Felder keine Spezifikation. Namen und
-//! Wertebereiche folgen dem, was Lightroom beim Export schreibt und ExifTool
-//! dokumentiert. Felder, die Blick nicht umsetzen kann, landen in
-//! `Preset::ignored`, damit der Import sie nennen kann.
+//! Adobe publishes no specification for these fields. Names and
+//! value ranges follow what Lightroom writes on export and what ExifTool
+//! documents. Fields Blick can't implement end up in
+//! `Preset::ignored` so the import can name them.
 
 use std::collections::BTreeMap;
 
@@ -19,11 +19,11 @@ pub struct Preset {
     pub params: Params,
     pub grain: Grain,
     pub vignette: Vignette,
-    /// Gesetzte Felder, die Blick nicht abbildet (etwa Profile, Masken, Objektivkorrektur).
+    /// Fields that are set but Blick doesn't map (profiles, masks, lens correction, say).
     pub ignored: Vec<String>,
 }
 
-/// Felder ohne Bildwirkung oder mit Bedeutung nur für Lightroom selbst.
+/// Fields with no visible effect or meaning only to Lightroom itself.
 const META: &[&str] = &[
     "Version",
     "ProcessVersion",
@@ -63,8 +63,8 @@ const META: &[&str] = &[
     "LensProfileEnable",
 ];
 
-/// Liest alle `crs:`-Attribute und -Elemente in eine flache Tabelle.
-/// Kurven (`rdf:Seq` aus `rdf:li`) werden mit `;` verbunden.
+/// Reads all `crs:` attributes and elements into a flat table.
+/// Curves (`rdf:Seq` of `rdf:li`) are joined with `;`.
 fn collect(xml: &str) -> Result<BTreeMap<String, String>, String> {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(true);
@@ -141,7 +141,7 @@ fn curve(map: &BTreeMap<String, String>, key: &str) -> Curve {
 pub fn parse(xml: &str) -> Result<Preset, String> {
     let map = collect(xml)?;
     if map.is_empty() {
-        return Err("keine Camera-Raw-Einstellungen (crs:) gefunden".into());
+        return Err("no Camera Raw settings (crs:) found".into());
     }
     let mut used: Vec<&str> = Vec::new();
     let mut get = |k: &'static str| {
@@ -180,7 +180,7 @@ pub fn parse(xml: &str) -> Result<Preset, String> {
         curve(&map, "ToneCurvePV2012Blue"),
     ];
 
-    // Split-Toning (alt) oder Color Grading (neu, ab Lightroom 10).
+    // Split toning (old) or Color Grading (new, since Lightroom 10).
     let sh = (
         num(&map, "SplitToningShadowHue"),
         num(&map, "SplitToningShadowSaturation"),
@@ -247,7 +247,7 @@ pub fn parse(xml: &str) -> Result<Preset, String> {
                     | "ColorGradeHighlightSat"
             )
     };
-    // Nur Felder melden, die tatsächlich etwas tun würden.
+    // Only report fields that would actually do something.
     let neutral = |v: &str| {
         let v = v.trim().trim_start_matches('+');
         v.is_empty()
@@ -287,7 +287,7 @@ mod tests {
    crs:SplitToningShadowHue="210" crs:SplitToningShadowSaturation="20"
    crs:GrainAmount="25" crs:GrainSize="30" crs:PostCropVignetteAmount="-15"
    crs:LensProfileEnable="1" crs:EnableMaskGroupBasedCorrections="True" crs:Texture="+12">
-   <crs:Name><rdf:Alt><rdf:li xml:lang="x-default">Portra-ähnlich</rdf:li></rdf:Alt></crs:Name>
+   <crs:Name><rdf:Alt><rdf:li xml:lang="x-default">Portra-like</rdf:li></rdf:Alt></crs:Name>
    <crs:ToneCurvePV2012><rdf:Seq><rdf:li>0, 18</rdf:li><rdf:li>128, 130</rdf:li><rdf:li>255, 245</rdf:li></rdf:Seq></crs:ToneCurvePV2012>
   </rdf:Description>
  </rdf:RDF>
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn reads_lightroom_preset() {
         let p = parse(LR).unwrap();
-        assert_eq!(p.name.as_deref(), Some("Portra-ähnlich"));
+        assert_eq!(p.name.as_deref(), Some("Portra-like"));
         assert!((p.params.exposure - 0.35).abs() < 1e-6);
         assert_eq!(p.params.contrast, 20.0);
         assert_eq!(p.params.hsl[5][1], -40.0);
@@ -317,6 +317,6 @@ mod tests {
     #[test]
     fn rejects_non_preset() {
         assert!(parse("<x:xmpmeta><rdf:RDF/></x:xmpmeta>").is_err());
-        assert!(parse("kein xml <<<").is_err());
+        assert!(parse("not xml <<<").is_err());
     }
 }

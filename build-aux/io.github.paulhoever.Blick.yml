@@ -12,13 +12,13 @@ finish-args:
   - --device=dri
   # Immich
   - --share=network
-  # Netzwerkfreigaben (smb://, sftp://, davs://) über den gvfs-Dienst des Hosts
+  # Network shares (smb://, sftp://, davs://) through the host's gvfs service
   - --talk-name=org.gtk.vfs.*
   - --filesystem=xdg-run/gvfs
   - --filesystem=xdg-run/gvfsd
-  # Der Bilder-Ordner direkt, alles andere über den Dateiauswahl-Portal
+  # The Pictures folder directly, everything else through the file chooser portal
   - --filesystem=xdg-pictures
-  # USB-Sticks und SD-Karten
+  # USB sticks and SD cards
   - --filesystem=/run/media
   - --filesystem=/media
 build-options:

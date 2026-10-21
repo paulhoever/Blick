@@ -25,8 +25,8 @@ fn finds_identical_content_and_ignores_same_size_difference() {
     let d = tempfile::tempdir().unwrap();
     let big = vec![7u8; 400_000];
     let mut other = big.clone();
-    other[200_000] = 9; // gleiche Größe, Unterschied mitten in der Datei (außerhalb der Probe? Mitte ist Probe)
-    other[100_000] = 9; // zwischen den Proben: nur der Volllhash sieht es
+    other[200_000] = 9; // same size, difference in the middle of the file (outside the sample? the middle is sampled)
+    other[100_000] = 9; // between the samples: only the full hash sees it
     fs::write(d.path().join("a.bin"), &big).unwrap();
     fs::create_dir(d.path().join("sub")).unwrap();
     fs::write(d.path().join("sub/b.bin"), &big).unwrap();

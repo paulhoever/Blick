@@ -1,8 +1,8 @@
-//! Minimaler TIFF/EXIF-Zugriff, nur für das Orientation-Tag (0x0112) in IFD0.
+//! Minimal TIFF/EXIF access, only for the Orientation tag (0x0112) in IFD0.
 //!
-//! Für mehr braucht Blick keine EXIF-Bibliothek: Gedreht wird bei JPEG,
-//! indem nur dieses eine Tag umgeschrieben wird. Das ist verlustfrei und
-//! kostet unabhängig von der Bildgröße ein paar Mikrosekunden.
+//! Blick needs no EXIF library for more than that: JPEGs are rotated by
+//! rewriting just this one tag. That is lossless and takes a few
+//! microseconds regardless of image size.
 
 use crate::rotate::Rotation;
 
@@ -39,12 +39,12 @@ impl Endian {
     }
 }
 
-/// Manche Container liefern den Block mit `Exif\0\0`-Präfix, andere ohne.
+/// Some containers deliver the block with an `Exif\0\0` prefix, others without.
 fn tiff_start(data: &[u8]) -> usize {
     if data.starts_with(b"Exif\0\0") { 6 } else { 0 }
 }
 
-/// Byte-Offset des Werts von Orientation, falls das Tag in IFD0 steht.
+/// Byte offset of the Orientation value, if the tag is in IFD0.
 fn orientation_offset(data: &[u8]) -> Option<(Endian, usize)> {
     let base = tiff_start(data);
     let tiff = data.get(base..)?;
@@ -72,8 +72,8 @@ pub fn read_orientation(data: &[u8]) -> Option<u16> {
     (1..=8).contains(&v).then_some(v)
 }
 
-/// Schreibt den Wert an Ort und Stelle. `false`, wenn das Tag fehlt;
-/// ein neues Tag einzufügen hieße, das IFD neu aufzubauen.
+/// Writes the value in place. `false` if the tag is missing;
+/// inserting a new tag would mean rebuilding the IFD.
 pub fn write_orientation(data: &mut [u8], value: u16) -> bool {
     match orientation_offset(data) {
         Some((endian, at)) => {
@@ -84,7 +84,7 @@ pub fn write_orientation(data: &mut [u8], value: u16) -> bool {
     }
 }
 
-/// Kleinster gültiger TIFF-Block mit nur einem Eintrag: Orientation.
+/// Smallest valid TIFF block with a single entry: Orientation.
 pub fn minimal_exif(orientation: u16) -> Vec<u8> {
     let mut v = Vec::with_capacity(26);
     v.extend_from_slice(b"MM\0\x2a");
@@ -99,10 +99,10 @@ pub fn minimal_exif(orientation: u16) -> Vec<u8> {
     v
 }
 
-/// Neue Orientation nach einer Drehung um 90°.
+/// New Orientation after a 90° rotation.
 ///
-/// Gedacht als (Spiegelung, Drehung im Uhrzeigersinn): 1/6/3/8 sind 0/90/180/270
-/// ohne Spiegelung, 2/7/4/5 dieselben Winkel mit horizontaler Spiegelung zuerst.
+/// Read as (mirroring, clockwise rotation): 1/6/3/8 are 0/90/180/270
+/// without mirroring, 2/7/4/5 the same angles with horizontal mirroring first.
 pub fn rotate_orientation(o: u16, rot: Rotation) -> u16 {
     const CW: [u16; 9] = [0, 6, 7, 8, 5, 2, 3, 4, 1];
     const CCW: [u16; 9] = [0, 8, 5, 6, 7, 4, 1, 2, 3];

@@ -15,18 +15,18 @@ use crate::models::*;
 use crate::time::rfc3339;
 
 /// Mehr gleichzeitige Thumbnail-Abrufe bringen nichts: Immich rechnet
-/// Vorschauen teils erst bei Bedarf, und der Server soll nicht in die Knie gehen.
+/// Previews are sometimes generated on demand, and the server shouldn't fall over.
 const THUMB_PARALLEL: usize = 6;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThumbSize {
-    /// ca. 250 px, für das Raster
+    /// about 250 px, for the grid
     Thumbnail,
-    /// ca. 1440 px, für die Einzelansicht
+    /// about 1440 px, for the single view
     Preview,
-    /// Volle Auflösung als Web-Format. Immich 3.x leitet bei JPEG, PNG & Co.
-    /// aufs Original um; HEIC und RAW gibt es nur, wenn der Server Fullsize-
-    /// Bilder erzeugt, sonst kommt wieder die Vorschau.
+    /// Full resolution as a web format. Immich 3.x redirects JPEG, PNG and the like
+    /// to the original; HEIC and RAW only work if the server generates fullsize
+    /// images, otherwise you get the preview again.
     Fullsize,
 }
 
@@ -40,7 +40,7 @@ impl ThumbSize {
     }
 }
 
-/// Günstig zu klonen; alle Klone teilen Verbindungspool und Thumbnail-Limit.
+/// Cheap to clone; all clones share the connection pool and the thumbnail limit.
 #[derive(Clone)]
 pub struct Client {
     http: reqwest::Client,
@@ -58,14 +58,14 @@ impl std::fmt::Debug for Client {
 }
 
 impl Client {
-    /// `server` darf mit oder ohne `/api` angegeben werden.
+    /// `server` may be given with or without `/api`.
     pub fn new(server: &str, api_key: &str) -> Result<Self> {
         let server = server.trim().trim_end_matches('/');
         if !(server.starts_with("http://") || server.starts_with("https://")) {
             return Err(Error::BadUrl(server.to_owned()));
         }
-        // reqwest bringt keinen Krypto-Provider mit; ring baut auch im Flatpak-SDK
-        // ohne Sonderwünsche (aws-lc nicht). Doppelt installieren ist harmlos.
+        // reqwest ships no crypto provider; ring builds in the Flatpak SDK without
+        // special requests (aws-lc doesn't). Installing it twice is harmless.
         let _ = rustls::crypto::ring::default_provider().install_default();
         let base = if server.ends_with("/api") {
             server.to_owned()
@@ -88,8 +88,8 @@ impl Client {
         format!("{}{path}", self.base)
     }
 
-    /// Adresse zum Abspielen eines Videos: Immichs Fassung für den Browser,
-    /// mit Range-Anfragen. Den Schlüssel schickt der Player als `x-api-key`.
+    /// Address for playing a video: Immich's browser version,
+    /// with range requests. The player sends the key as `x-api-key`.
     pub fn playback_url(&self, asset_id: &str) -> String {
         format!("{}/assets/{asset_id}/video/playback", self.base)
     }
@@ -111,7 +111,7 @@ impl Client {
             return Err(Error::Unauthorized);
         }
         let text = resp.text().await.unwrap_or_default();
-        // Immich liefert Fehler als {"message": "...", "statusCode": ...}
+        // Immich reports errors as {"message": "...", "statusCode": ...}
         let message = serde_json::from_str::<serde_json::Value>(&text)
             .ok()
             .and_then(|v| {
@@ -130,7 +130,7 @@ impl Client {
         Ok(serde_json::from_slice(&bytes)?)
     }
 
-    /// Erreichbarkeit, ohne Anmeldung.
+    /// Reachability, without logging in.
     pub async fn ping(&self) -> Result<()> {
         #[derive(serde::Deserialize)]
         struct Pong {
@@ -147,7 +147,7 @@ impl Client {
         }
     }
 
-    /// Prüft den Schlüssel und sagt, wem er gehört.
+    /// Checks the key and says who it belongs to.
     pub async fn me(&self) -> Result<User> {
         Self::json(self.get("/users/me")).await
     }
@@ -158,7 +158,7 @@ impl Client {
         Ok(albums)
     }
 
-    /// Monate eines Albums (oder der ganzen Bibliothek), neueste zuerst.
+    /// Months of an album (or the whole library), newest first.
     pub async fn time_buckets(&self, album_id: Option<&str>) -> Result<Vec<TimeBucket>> {
         let mut q = vec![("order", "desc")];
         if let Some(id) = album_id {
@@ -185,15 +185,15 @@ impl Client {
             .thumbs
             .acquire()
             .await
-            .expect("Semaphore wird nie geschlossen");
+            .expect("semaphore is never closed");
         let req = self
             .get(&format!("/assets/{asset_id}/thumbnail"))
             .query(&[("size", size.as_str())]);
         Ok(Self::check(req.send().await?).await?.bytes().await?)
     }
 
-    /// Lädt eine Datei hoch. Die Datei wird gestreamt, nicht ganz in den Speicher gelesen.
-    /// Kennt der Server die Prüfsumme schon, kommt `UploadStatus::Duplicate` zurück.
+    /// Uploads a file. The file is streamed, not read into memory whole.
+    /// If the server already knows the checksum, `UploadStatus::Duplicate` comes back.
     pub async fn upload(&self, path: &Path) -> Result<UploadResponse> {
         let io = |e| Error::Io {
             path: path.to_owned(),
@@ -229,7 +229,7 @@ impl Client {
         Self::json(req).await
     }
 
-    /// Name der Datei, wie sie hochgeladen wurde.
+    /// Name of the file as it was uploaded.
     pub async fn original_file_name(&self, asset_id: &str) -> Result<String> {
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
@@ -240,7 +240,7 @@ impl Client {
         Ok(a.original_file_name)
     }
 
-    /// Lädt das Original gestreamt nach `dst` (über eine temporäre Datei daneben).
+    /// Streams the original to `dst` (through a temporary file next to it).
     pub async fn download_original(&self, asset_id: &str, dst: &Path) -> Result<u64> {
         use futures_util::StreamExt;
         use tokio::io::AsyncWriteExt;
@@ -269,9 +269,9 @@ impl Client {
         Ok(n)
     }
 
-    /// Eine Seite der Metadatensuche (1000 Treffer), mit Prüfsumme und EXIF.
-    /// `next` ist die Seitennummer aus der vorigen Antwort, `None` für die erste.
-    /// Rückgabe: Treffer und die nächste Seite, falls es eine gibt.
+    /// One page of the metadata search (1000 hits), with checksum and EXIF.
+    /// `next` is the page number from the previous response, `None` for the first.
+    /// Returns the hits and the next page, if there is one.
     pub async fn search_page(
         &self,
         album_id: Option<&str>,
@@ -338,9 +338,9 @@ impl Client {
         Self::json(req).await
     }
 
-    /// Legt einen Freigabelink für die Assets an und gibt die Adresse zurück.
-    /// Ist in Immich eine externe Domain eingetragen, steht die im Link,
-    /// sonst die Serveradresse aus den Einstellungen.
+    /// Creates a share link for the assets and returns the address.
+    /// If Immich has an external domain set, the link uses that,
+    /// otherwise the server address from the settings.
     pub async fn share_link(&self, asset_ids: &[String]) -> Result<String> {
         #[derive(serde::Deserialize)]
         struct Link {
@@ -438,7 +438,7 @@ mod tests {
     }
 }
 
-/// Immich liefert SHA-1 als Base64; Hex ist das, was sha1sum & Co. ausgeben.
+/// Immich delivers SHA-1 as Base64; hex is what sha1sum and friends print.
 fn base64_to_hex(b64: &str) -> String {
     const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let (mut acc, mut bits, mut out) = (0u32, 0u32, String::new());

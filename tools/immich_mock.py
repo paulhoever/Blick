@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Immich-Attrappe für Tests von Blick. Nie gegen ein echtes Immich-Konto testen.
+"""Immich mock for testing Blick. Never test against a real Immich account.
 
-    python3 tools/immich_mock.py <bilderordner> [port]
+    python3 tools/immich_mock.py <picture-folder> [port]
 
-Lauscht auf 127.0.0.1 (Standard 2291), API-Schlüssel `demo-key`.
-Bildet die Endpunkte nach, die Blick nutzt, in den Formaten der spec.json von
-Immich 3.3.1: Zeitleiste spaltenweise, Upload als multipart mit Prüfsumme.
-Jede Anfrage landet auf stdout, so lässt sich prüfen, was die App gefragt hat.
+Listens on 127.0.0.1 (default 2291), API key `demo-key`.
+Imitates the endpoints Blick uses, in the formats of the spec.json of
+Immich 3.3.1: timeline column-wise, upload as multipart with checksum.
+Every request goes to stdout, so you can check what the app asked for.
 """
 import io
 import json
@@ -19,7 +19,7 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-# HEIC nur, wenn pillow-heif da ist (pip install pillow-heif).
+# HEIC only if pillow-heif is there (pip install pillow-heif).
 try:
     import pillow_heif
     pillow_heif.register_heif_opener()
@@ -31,11 +31,11 @@ KEY = os.environ.get("MOCK_KEY", "demo-key")
 SRC = sys.argv[1] if len(sys.argv) > 1 else "."
 VIDEO = (".mp4", ".mov", ".webm", ".mkv")
 FILES = sorted(f for f in os.listdir(SRC) if f.lower().endswith((".jpg", ".jpeg", ".png") + HEIF + VIDEO))
-# Was Browser direkt zeigen können; nur dafür leitet `size=fullsize` aufs Original um.
+# What browsers can show directly; only for those does `size=fullsize` redirect to the original.
 WEB = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif")
 
 def video_frame(path):
-    """Standbild als JPEG-Bytes (ffmpeg), wie Immichs Video-Thumbnail."""
+    """Still frame as JPEG bytes (ffmpeg), like Immich's video thumbnail."""
     return subprocess.run(["ffmpeg", "-v", "error", "-ss", "0.5", "-i", path, "-frames:v", "1",
                            "-f", "image2pipe", "-vcodec", "mjpeg", "-"], capture_output=True, check=True).stdout
 
@@ -70,7 +70,7 @@ class Handler(BaseHTTPRequestHandler):
         return self.rfile.read(int(self.headers.get("Content-Length", 0)))
 
     def authed(self):
-        # Wie Immich: Schlüssel im Header oder als Query `apiKey` (GStreamer kann keine Header).
+        # Like Immich: key in the header or as query `apiKey` (GStreamer can't send headers).
         q = parse_qs(urlparse(self.path).query)
         if self.headers.get("x-api-key") == KEY or q.get("apiKey", [None])[0] == KEY:
             return True
@@ -88,7 +88,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(404, {})
         raw = self.body()
         if b'name="assetData"' not in raw or b'name="fileCreatedAt"' not in raw:
-            return self.send(400, {"message": "assetData oder fileCreatedAt fehlt"})
+            return self.send(400, {"message": "assetData or fileCreatedAt missing"})
         checksum = self.headers.get("x-immich-checksum", "")
         if checksum in CHECKSUMS:
             print("UPLOAD duplicate", checksum, flush=True)
@@ -106,7 +106,7 @@ class Handler(BaseHTTPRequestHandler):
             ids = json.loads(self.body() or b"{}").get("ids", [])
             album = ALBUMS.get(parts[2])
             if album is None:
-                return self.send(404, {"message": "Album nicht gefunden"})
+                return self.send(404, {"message": "Album not found"})
             out = []
             for i in ids:
                 ok = i not in album["ids"]
@@ -183,8 +183,8 @@ class Handler(BaseHTTPRequestHandler):
             a = next((x for x in ASSETS if x["id"] == parts[2]), None)
             if a is None:
                 return self.send(404, {})
-            # Immich 3.3.1 ohne erzeugte Fullsize-Dateien: Web-Formate gehen
-            # aufs Original, alles andere (HEIC, RAW) auf die Vorschau.
+            # Immich 3.3.1 without generated fullsize files: web formats go
+            # to the original, everything else (HEIC, RAW) to the preview.
             if q.get("size") == "fullsize":
                 web = a["file"].lower().endswith(WEB)
                 self.send_response(302)
@@ -205,5 +205,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 2291
-    print(f"Immich-Attrappe auf 127.0.0.1:{port}, {len(ASSETS)} Bilder, Schlüssel {KEY}", flush=True)
+    print(f"Immich mock on 127.0.0.1:{port}, {len(ASSETS)} pictures, key {KEY}", flush=True)
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()

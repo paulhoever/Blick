@@ -1,9 +1,9 @@
-//! Körnung und Vignette. Beide hängen von der Position im Bild ab und passen
-//! deshalb nicht in eine LUT; sie laufen nach ihr.
+//! Grain and vignette. Both depend on position in the image and so don't
+//! fit in a LUT; they run after it.
 
 use rayon::prelude::*;
 
-/// Lightroom-Einheiten: Stärke 0..=100, Größe 0..=100 (Standard 25),
+/// Lightroom units: amount 0..=100, size 0..=100 (default 25),
 /// Rauheit 0..=100 (Standard 50).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Grain {
@@ -22,7 +22,7 @@ impl Default for Grain {
     }
 }
 
-/// Stärke -100..=100 (negativ dunkelt ab), Mittelpunkt 0..=100 (Standard 50).
+/// Amount -100..=100 (negative darkens), midpoint 0..=100 (default 50).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Vignette {
     pub amount: f32,
@@ -38,8 +38,8 @@ impl Default for Vignette {
     }
 }
 
-/// Bezugsbreite: Kornstruktur relativ zur Bildbreite, damit Vorschau und
-/// Export in voller Auflösung gleich aussehen.
+/// Reference width: grain structure relative to image width, so preview and
+/// full-resolution export look the same.
 const GRAIN_REF_WIDTH: f32 = 1600.0;
 
 fn hash(x: i32, y: i32, seed: u64) -> f32 {
@@ -84,7 +84,7 @@ impl Grain {
                     + value_noise(fx * 2.3, fy * 2.3, seed ^ 0xA5A5) * rough;
                 let l =
                     (0.2126 * px[0] as f32 + 0.7152 * px[1] as f32 + 0.0722 * px[2] as f32) / 255.0;
-                // Korn sieht man in den Mitteltönen, kaum in Schwarz und Weiß.
+                // Grain shows in the midtones, barely in black and white.
                 let d = n * amp * (0.25 + 3.0 * l * (1.0 - l));
                 for c in &mut px[..3] {
                     *c = (*c as f32 + d).round().clamp(0.0, 255.0) as u8;

@@ -1,9 +1,9 @@
-//! Zuschneiden: das ganze Bild, darüber ein Rahmen mit Griffen.
+//! Cropping: the whole image, with a frame and handles on top.
 //!
-//! Der Rahmen wird in Bildpixeln der Vorschau geführt und als [`Crop`]
-//! (Bruchteile) nach außen gegeben. Ziehen an Ecken und Kanten ändert die
-//! Größe, Ziehen innen verschiebt. Tastatur: Pfeile verschieben, mit Umschalt
-//! ändern sie die Größe, Enter übernimmt, Esc bricht ab (siehe Viewer).
+//! The frame is kept in image pixels of the preview and handed out as a [`Crop`]
+//! (fractions). Dragging corners and edges resizes it, dragging inside
+//! moves it. Keyboard: arrows move, with Shift they resize, Enter applies,
+//! Esc cancels (see viewer).
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -12,13 +12,13 @@ use blick_core::crop::{Aspect, Crop, Handle, Rect};
 use gtk::prelude::*;
 use gtk::{gdk, glib};
 
-/// Rand um das Bild, damit Griffe am Bildrand greifbar bleiben.
+/// Margin around the image so handles stay reachable at the image edge.
 const MARGIN: f64 = 24.0;
-/// Unten mehr Platz: dort schwebt die Leiste mit Abbrechen und Zuschneiden.
+/// More room at the bottom: the bar with Cancel and Crop floats there.
 const BOTTOM: f64 = 72.0;
-/// Fangradius der Griffe in Bildschirmpixeln.
+/// Handle hit radius in screen pixels.
 const GRAB: f64 = 14.0;
-/// Pfeiltaste: Schritt in Bruchteilen der kürzeren Bildkante.
+/// Arrow key: step in fractions of the shorter image edge.
 const KEY_STEP: f64 = 0.01;
 
 type OnChange = Box<dyn Fn(Crop)>;
@@ -27,11 +27,11 @@ pub struct CropView {
     pub widget: gtk::Overlay,
     picture: gtk::Picture,
     area: gtk::DrawingArea,
-    /// Größe der gezeigten Vorschau in Pixeln.
+    /// Size of the shown preview in pixels.
     img: Cell<(f64, f64)>,
     crop: Cell<Crop>,
     aspect: Cell<(Aspect, bool)>,
-    /// Griff und Rahmen beim Anfassen.
+    /// Handle and frame at the moment of grabbing.
     drag: Cell<Option<(Handle, Rect)>>,
     on_change: RefCell<Option<OnChange>>,
 }
@@ -53,9 +53,9 @@ impl CropView {
             .accessible_role(gtk::AccessibleRole::Img)
             .build();
         area.update_property(&[
-            gtk::accessible::Property::Label("Zuschnitt"),
+            gtk::accessible::Property::Label("Crop"),
             gtk::accessible::Property::Description(
-                "Pfeiltasten verschieben den Rahmen, mit Umschalt ändern sie die Größe. Enter übernimmt, Escape bricht ab.",
+                "Arrow keys move the frame, with Shift they change its size. Enter applies, Escape cancels.",
             ),
         ]);
         let widget = gtk::Overlay::builder()
@@ -138,12 +138,12 @@ impl CropView {
         this
     }
 
-    /// Bei jedem Ziehen, für die Größenangabe in der Seitenleiste.
+    /// On every drag, for the size readout in the sidebar.
     pub fn connect_changed(&self, f: impl Fn(Crop) + 'static) {
         self.on_change.replace(Some(Box::new(f)));
     }
 
-    /// Bild, auf dem der Rahmen liegt (ohne Zuschnitt).
+    /// Image the frame sits on (without crop).
     pub fn set_texture(&self, tex: Option<&gdk::Texture>) {
         self.picture.set_paintable(tex);
         if let Some(t) = tex {
@@ -161,8 +161,8 @@ impl CropView {
         self.area.queue_draw();
     }
 
-    /// Neues Seitenverhältnis. Mit `fit` gleich der größte passende Rahmen
-    /// um die bisherige Mitte, sonst gilt es ab dem nächsten Ziehen.
+    /// New aspect ratio. With `fit`, the largest fitting frame right away
+    /// around the previous center, otherwise it applies from the next drag.
     pub fn set_aspect(&self, aspect: Aspect, portrait: bool, fit: bool) {
         self.aspect.set((aspect, portrait));
         let (iw, ih) = self.img.get();
@@ -172,7 +172,7 @@ impl CropView {
         }
     }
 
-    /// Zurück auf das ganze Bild, im gewählten Verhältnis.
+    /// Back to the whole image, in the chosen ratio.
     pub fn reset(&self) {
         let (iw, ih) = self.img.get();
         if iw > 0.0 && ih > 0.0 {
@@ -184,7 +184,7 @@ impl CropView {
         self.area.grab_focus();
     }
 
-    /// Pfeiltasten. `true`, wenn die Taste etwas getan hat.
+    /// Arrow keys. `true` if the key did something.
     pub fn key(&self, key: gdk::Key, shift: bool) -> bool {
         let (dx, dy) = match key {
             gdk::Key::Left | gdk::Key::KP_Left => (-1.0, 0.0),
@@ -229,7 +229,7 @@ impl CropView {
         }
     }
 
-    /// Bildpixel → Bildschirm: Faktor und linke obere Ecke des Bildes.
+    /// Image pixel → screen: scale and top left corner of the image.
     fn placement(&self) -> (f64, f64, f64) {
         let (iw, ih) = self.img.get();
         let (w, h) = (self.area.width() as f64, self.area.height() as f64);
@@ -259,7 +259,7 @@ impl CropView {
         Some((ox + r.x * s, oy + r.y * s, r.w * s, r.h * s))
     }
 
-    /// Welcher Griff unter dem Zeiger liegt. Ecken vor Kanten vor Innenfläche.
+    /// Which handle is under the pointer. Corners before edges before the inside.
     fn hit(&self, x: f64, y: f64) -> Option<Handle> {
         let (rx, ry, rw, rh) = self.screen_rect()?;
         let near = |a: f64, b: f64| (a - b).abs() <= GRAB;
@@ -286,7 +286,7 @@ impl CropView {
         };
         let (s, ox, oy) = self.placement();
         let (iw, ih) = self.img.get();
-        // Außerhalb des Rahmens abdunkeln, nur über dem Bild.
+        // Darken outside the frame, only over the image.
         cr.set_fill_rule(gtk::cairo::FillRule::EvenOdd);
         cr.rectangle(ox, oy, iw * s, ih * s);
         cr.rectangle(rx, ry, rw, rh);
@@ -305,7 +305,7 @@ impl CropView {
         }
         let _ = cr.stroke();
 
-        // Rahmen mit dunkler Kontur, damit er auch auf hellen Bildern steht.
+        // Frame with a dark outline, so it stands out on bright images too.
         cr.rectangle(rx, ry, rw, rh);
         cr.set_source_rgba(0.0, 0.0, 0.0, 0.5);
         cr.set_line_width(3.0);
@@ -314,7 +314,7 @@ impl CropView {
         cr.set_line_width(1.5);
         let _ = cr.stroke();
 
-        // Griffe: Kreise an den Ecken, kleinere an den Kantenmitten.
+        // Handles: circles at the corners, smaller ones at the edge midpoints.
         let dots = [
             (rx, ry, 7.0),
             (rx + rw, ry, 7.0),

@@ -1,4 +1,4 @@
-//! Die Pipeline: Auflisten, vorfiltern, hashen, gruppieren.
+//! The pipeline: list, prefilter, hash, group.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,18 +11,18 @@ use crate::hashdb::{Col, HashDb};
 use crate::sig::{self, Sig};
 use crate::source::{Entry, Storage};
 
-/// Bytes an Anfang, Mitte und Ende, die für den Vorab-Hash gelesen werden.
+/// Bytes at the start, middle and end that are read for the pre-hash.
 const PROBE: usize = 64 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
     /// Gleiche Bytes.
     Contents,
-    /// Ähnliche Bilder (15×15-Blocksignatur).
+    /// Similar images (15×15 block signature).
     Pictures,
-    /// Ähnliche Dateinamen (Wortvergleich).
+    /// Similar file names (word comparison).
     Names,
-    /// Ordner mit gleichem Inhalt (jede Datei hat ein Gegenstück).
+    /// Folders with the same content (every file has a counterpart).
     Folders,
 }
 
@@ -31,15 +31,15 @@ pub struct Options {
     pub mode: Mode,
     pub min_size: u64,
     pub max_size: u64,
-    /// Nur diese Endungen (klein, ohne Punkt). Leer: alle Dateien.
+    /// Only these extensions (lowercase, no dot). Empty: all files.
     pub extensions: Vec<String>,
-    /// Bildmodus: Mindestähnlichkeit in Prozent (dupeGuru-Standard 95).
+    /// Image mode: minimum similarity in percent (dupeGuru default 95).
     pub threshold: u8,
-    /// Bildmodus: auch um 90° gedrehte Treffer.
+    /// Image mode: also hits rotated by 90°.
     pub ignore_rotation: bool,
-    /// Bildmodus: erlaubte Abweichung des Seitenverhältnisses; `None` = egal.
+    /// Image mode: allowed aspect ratio deviation; `None` = don't care.
     pub aspect_tolerance: Option<f32>,
-    /// Namensmodus: Wörter mit einem Tippfehler Abstand gelten als gleich.
+    /// Name mode: words one typo apart count as equal.
     pub fuzzy_words: bool,
 }
 
@@ -60,7 +60,7 @@ impl Default for Options {
 
 pub struct SourceSpec {
     pub storage: Arc<dyn Storage>,
-    /// Referenz: wird nie als löschbar vorgeschlagen.
+    /// Reference: never suggested for deletion.
     pub reference: bool,
 }
 
@@ -74,7 +74,7 @@ pub struct Member {
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Group {
     pub members: Vec<Member>,
-    /// Ähnlichkeit in Prozent; Inhalt gleich = 100.
+    /// Similarity in percent; identical content = 100.
     pub score: u8,
 }
 
@@ -151,7 +151,7 @@ impl Scanner {
         report: Report,
     ) -> Result<Vec<Group>> {
         let files = self.attach_checksums(files, cancel)?;
-        // Stufe 1: Größe (und Server-Prüfsumme, wo vorhanden).
+        // Stage 1: size (and server checksum, where there is one).
         let mut by_size: HashMap<(u64, Option<String>), Vec<(usize, Entry)>> = HashMap::new();
         for f in files {
             by_size.entry((f.1.size, f.1.checksum.clone())).or_default().push(f);
@@ -159,10 +159,10 @@ impl Scanner {
         let mut cands: Vec<Vec<(usize, Entry)>> =
             by_size.into_values().filter(|v| v.len() > 1).collect();
 
-        // Stufe 2: Vorab-Hash aus Anfang, Mitte und Ende. Entfällt, wenn der
-        // Server schon eine Prüfsumme geliefert hat.
+        // Stage 2: pre-hash from start, middle and end. Skipped if the
+        // server already supplied a checksum.
         cands = self.refine(cands, Stage::Probing, cancel, report, |s, e| self.probe_hash(s, e))?;
-        // Stufe 3: voller Hash, nur wo der Vorab-Hash nicht schon alles gesehen hat.
+        // Stage 3: full hash, only where the pre-hash hasn't already seen everything.
         cands = self.refine(cands, Stage::Hashing, cancel, report, |s, e| self.full_hash(s, e))?;
 
         report(Progress { stage: Stage::Grouping, done: 1, total: 1 });
@@ -182,7 +182,7 @@ impl Scanner {
             .collect())
     }
 
-    /// Teilt jede Kandidatengruppe nach dem Hash weiter auf, parallel.
+    /// Splits every candidate group further by hash, in parallel.
     fn refine(
         &self,
         groups: Vec<Vec<(usize, Entry)>>,
@@ -278,7 +278,7 @@ impl Scanner {
         report(Progress { stage: Stage::Grouping, done: 0, total: items.len() });
 
         let edges = similar_pairs(&items.iter().map(|i| &i.2).collect::<Vec<_>>(), &self.options, cancel)?;
-        // Zusammenhangskomponenten, Gruppenwert = schwächste Kante.
+        // Connected components, group score = weakest edge.
         let mut parent: Vec<usize> = (0..items.len()).collect();
         fn find(p: &mut [usize], mut x: usize) -> usize {
             while p[x] != x {
@@ -316,8 +316,8 @@ impl Scanner {
             .collect())
     }
 
-    /// Hat eine Quelle Server-Prüfsummen (Immich), bekommen lokale Dateien gleicher
-    /// Größe ebenfalls eine SHA-1, damit „liegt schon in Immich“ ohne Download geht.
+    /// If a source has server checksums (Immich), local files of the same
+    /// size get a SHA-1 as well, so "already in Immich" works without a download.
     fn attach_checksums(
         &self,
         mut files: Vec<(usize, Entry)>,
@@ -476,7 +476,7 @@ impl Scanner {
         Ok(h)
     }
 
-    /// Hardlinks derselben Datei zählen einmal, reine Referenzgruppen fallen weg,
+    /// Hardlinks of the same file count once, pure reference groups drop out,
     /// Referenzen stehen vorn.
     fn finish(&self, groups: Vec<Group>) -> Vec<Group> {
         let mut out: Vec<Group> = groups
@@ -502,9 +502,9 @@ impl Scanner {
     }
 }
 
-/// Alle Paare mit Ähnlichkeit >= Schwelle. Statt jeden mit jedem zu vergleichen:
-/// vier 16-Bit-Streifen des Gradientenhashs als Index. Zwei Bilder, deren Hashes
-/// sich in höchstens drei Bits unterscheiden, teilen immer einen Streifen.
+/// All pairs with similarity >= threshold. Instead of comparing every pair:
+/// four 16-bit stripes of the gradient hash as an index. Two images whose hashes
+/// differ in at most three bits always share a stripe.
 pub(crate) fn similar_pairs(
     sigs: &[&Sig],
     o: &Options,
@@ -597,7 +597,7 @@ fn components(members: Vec<Member>, edges: &[(usize, usize, f32)]) -> Vec<Group>
         .collect()
 }
 
-/// Kleinbuchstaben-Wörter des Dateinamens ohne Endung; Ziffern gehören dazu.
+/// Lowercase words of the file name without extension; digits count as words.
 fn name_words(uri: &str) -> Vec<String> {
     let name = unescape(uri.rsplit('/').next().unwrap_or(uri));
     let name = name.as_str();
@@ -622,7 +622,7 @@ fn lev_le1(a: &str, b: &str) -> bool {
     }
 }
 
-/// Dice-Koeffizient über die Wörter, in Prozent.
+/// Dice coefficient over the words, in percent.
 fn word_score(a: &[String], b: &[String], fuzzy: bool) -> f32 {
     let mut used = vec![false; b.len()];
     let mut common = 0;

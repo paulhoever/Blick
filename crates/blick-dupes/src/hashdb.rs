@@ -1,5 +1,5 @@
-//! Persistenter Cache für Hashes und Bildsignaturen. Schlüssel `(uri, size, mtime)`:
-//! ändert sich die Datei, ist der Eintrag automatisch tot.
+//! Persistent cache for hashes and image signatures. Key `(uri, size, mtime)`:
+//! if the file changes, the entry is dead automatically.
 
 use std::path::Path;
 use std::sync::Mutex;

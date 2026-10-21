@@ -1,9 +1,9 @@
-//! Stil-Bibliothek: mitgelieferte Looks plus importierte Dateien unter
-//! `$XDG_DATA_HOME/blick/looks/`, und der Auswahldialog mit Vorschauen.
+//! Look library: bundled looks plus imported files under
+//! `$XDG_DATA_HOME/blick/looks/`, and the picker dialog with previews.
 //!
-//! Dateien werden erst geparst, wenn man sie braucht: Die RawTherapee-Sammlung
-//! hat fast 300 HaldCLUTs zu je 1728×1728 Pixeln, die alle beim Start zu laden
-//! würde Sekunden kosten.
+//! Files are only parsed when they're needed: the RawTherapee collection
+//! has almost 300 HaldCLUTs of 1728×1728 pixels each, and loading all of them
+//! at startup would cost seconds.
 
 use std::cell::{OnceCell, RefCell};
 use std::path::{Path, PathBuf};
@@ -18,18 +18,18 @@ use gtk::{gdk, gio, glib};
 
 use crate::ctx::texture;
 
-/// Film Simulation Collection von RawTherapee, CC BY-SA 4.0.
+/// RawTherapee's Film Simulation Collection, CC BY-SA 4.0.
 pub const RAWTHERAPEE_URL: &str = "https://rawtherapee.com/shared/HaldCLUT.zip";
 const RAWTHERAPEE_DIR: &str = "RawTherapee";
 const RAWTHERAPEE_NOTE: &str = "RawTherapee Film Simulation Collection, CC BY-SA 4.0\n\
 Pat David, Pavlov Dmitry, Michael Ezra. https://rawpedia.rawtherapee.com/Film_Simulation\n\
-Markennamen in den Dateinamen sagen nur, welchem Film der Look nachempfunden ist.\n";
+Brand names in the file names only say which film the look imitates.\n";
 
 pub fn looks_dir() -> PathBuf {
     glib::user_data_dir().join("blick").join("looks")
 }
 
-// ---------- Eintrag ----------
+// ---------- Entry ----------
 
 mod imp {
     use super::*;
@@ -88,7 +88,7 @@ impl LookItem {
         self.imp().path.borrow().clone()
     }
 
-    /// Lädt die Datei beim ersten Zugriff. Aufruf aus Worker-Threads über `load_blocking`.
+    /// Loads the file on first access. Call from worker threads through `load_blocking`.
     pub fn cached(&self) -> Option<Arc<Look>> {
         self.imp().look.get().cloned()
     }
@@ -98,23 +98,23 @@ impl LookItem {
     }
 }
 
-/// Lädt einen Look außerhalb des UI-Threads.
+/// Loads a look off the UI thread.
 pub async fn load(item: &LookItem) -> anyhow::Result<Arc<Look>> {
     if let Some(l) = item.cached() {
         return Ok(l);
     }
     let path = item
         .path()
-        .ok_or_else(|| anyhow::anyhow!("Look ohne Datei"))?;
+        .ok_or_else(|| anyhow::anyhow!("look without a file"))?;
     let look = gio::spawn_blocking(move || Look::load(&path).map(Arc::new))
         .await
-        .map_err(|_| anyhow::anyhow!("Laden abgestürzt"))??;
+        .map_err(|_| anyhow::anyhow!("loading crashed"))??;
     item.remember(look.clone());
     Ok(look)
 }
 
-/// Für Thumbnails aus Worker-Threads: Look zu einem Sidecar-Schlüssel laden.
-/// Hält geladene Looks, eine HaldCLUT liest man nicht für jedes Bild neu.
+/// For thumbnails from worker threads: load the look for a sidecar key.
+/// Keeps loaded looks, a HaldCLUT isn't re-read for every picture.
 pub fn resolve_key(key: &str) -> Option<Arc<Look>> {
     use std::collections::HashMap;
     use std::sync::{LazyLock, Mutex};
@@ -123,7 +123,7 @@ pub fn resolve_key(key: &str) -> Option<Arc<Look>> {
         return Some(l.clone());
     }
     let path = looks_dir().join(key);
-    // Nur innerhalb des Stilordners, ein Sidecar soll keine beliebigen Dateien laden.
+    // Only inside the look folder, a sidecar mustn't load arbitrary files.
     if !path.starts_with(looks_dir()) || key.contains("..") {
         return None;
     }
@@ -132,7 +132,7 @@ pub fn resolve_key(key: &str) -> Option<Arc<Look>> {
     Some(look)
 }
 
-// ---------- Bibliothek ----------
+// ---------- Library ----------
 
 pub struct Library {
     pub store: gio::ListStore,
@@ -147,7 +147,7 @@ impl Library {
         this
     }
 
-    /// Mitgelieferte zuerst, dann alle Dateien im Stil-Ordner nach Gruppe und Name.
+    /// Bundled ones first, then all files in the look folder by group and name.
     pub fn reload(&self) {
         let mut items: Vec<LookItem> = Look::builtins()
             .into_iter()
@@ -171,7 +171,7 @@ impl Library {
             items.push(LookItem::file(
                 p,
                 if group.is_empty() {
-                    "Importiert".into()
+                    "Imported".into()
                 } else {
                     group
                 },
@@ -180,8 +180,8 @@ impl Library {
         self.store.splice(0, self.store.n_items(), &items);
     }
 
-    /// Schlüssel für das Sidecar: Pfad relativ zum Stilordner, bei
-    /// mitgelieferten Stilen `blick:<Name>`.
+    /// Key for the sidecar: path relative to the look folder, for
+    /// bundled looks `blick:<Name>`.
     pub fn key_of(look: &LookItem) -> String {
         match look.path() {
             Some(p) => p
@@ -200,7 +200,7 @@ impl Library {
             .find(|l| Self::key_of(l) == key)
     }
 
-    /// Eintrag zu einem geladenen Look (über den Zeiger).
+    /// Entry for a loaded look (via the pointer).
     pub fn item_for(&self, look: &Arc<Look>) -> Option<LookItem> {
         self.store
             .iter::<LookItem>()
@@ -227,18 +227,18 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Ergebnis eines Imports, für die Meldung danach.
+/// Result of an import, for the message afterwards.
 #[derive(Default)]
 pub struct ImportReport {
     pub imported: usize,
     pub failed: Vec<(PathBuf, String)>,
-    /// Lightroom-Felder, die Blick nicht abbildet, je Preset.
+    /// Lightroom fields Blick doesn't map, per preset.
     pub ignored: Vec<(String, Vec<String>)>,
 }
 
-/// Kopiert Look-Dateien in den Stil-Ordner. Ordner werden mit ihrer Struktur
-/// übernommen (der Ordnername wird zur Gruppe). Jede Datei wird vorher geparst,
-/// kaputte landen nicht in der Bibliothek.
+/// Copies look files into the look folder. Folders keep their structure
+/// (the folder name becomes the group). Every file is parsed first,
+/// broken ones don't end up in the library.
 pub fn import(sources: &[PathBuf]) -> ImportReport {
     let root = looks_dir();
     let mut report = ImportReport::default();
@@ -279,8 +279,8 @@ pub fn import(sources: &[PathBuf]) -> ImportReport {
     report
 }
 
-/// Lädt die RawTherapee-Sammlung (ca. 420 MB) und entpackt nur die PNGs.
-/// `progress(geladen, gesamt)` kommt aus dem Netzwerk-Task.
+/// Downloads the RawTherapee collection (about 420 MB) and unpacks only the PNGs.
+/// `progress(loaded, total)` is called from the network task.
 pub async fn download_rawtherapee(
     progress: impl Fn(u64, u64) + Send + 'static,
 ) -> anyhow::Result<usize> {
@@ -320,7 +320,7 @@ pub async fn download_rawtherapee(
             {
                 continue;
             }
-            // „HaldCLUT/Color/Kodak/…png“ → „RawTherapee/Color/Kodak/…png“
+            // "HaldCLUT/Color/Kodak/….png" → "RawTherapee/Color/Kodak/….png"
             let rel: PathBuf = name.components().skip(1).collect();
             let dst = target.join(rel);
             if let Some(dir) = dst.parent() {
@@ -329,8 +329,8 @@ pub async fn download_rawtherapee(
             std::io::copy(&mut entry, &mut std::fs::File::create(&dst)?)?;
             n += 1;
         }
-        std::fs::write(target.join("LIZENZ.txt"), RAWTHERAPEE_NOTE)?;
-        // Die heruntergeladene ZIP ist unsere eigene Zwischendatei.
+        std::fs::write(target.join("LICENSE.txt"), RAWTHERAPEE_NOTE)?;
+        // The downloaded ZIP is our own temporary file.
         std::fs::remove_file(&tmp)?;
         Ok(n)
     })
@@ -338,12 +338,12 @@ pub async fn download_rawtherapee(
     Ok(count)
 }
 
-// ---------- Auswahldialog ----------
+// ---------- Picker dialog ----------
 
 const PREVIEW_PX: u32 = 112;
 
-/// Zeigt alle Looks mit Vorschau des aktuellen Bildes. `base` ist das Bild
-/// in Bildschirmgröße; es wird einmal auf Kachelgröße verkleinert.
+/// Shows all looks with a preview of the current picture. `base` is the picture
+/// at screen size; it is shrunk once to tile size.
 pub fn pick(
     parent: &impl IsA<gtk::Widget>,
     library: Rc<Library>,
@@ -429,7 +429,7 @@ pub fn pick(
             .and_downcast::<gtk::Label>()
             .expect("Label");
         name.set_label(&look.name());
-        // Nur der letzte Teil der Gruppe, „Kodak“ statt „RawTherapee / Color / Kodak“.
+        // Only the last part of the group, "Kodak" instead of "RawTherapee / Color / Kodak".
         let g = look.group();
         group.set_label(g.rsplit(" / ").next().unwrap_or(&g));
         group.set_tooltip_text(Some(&g));
@@ -437,7 +437,7 @@ pub fn pick(
         pic.set_paintable(look.preview().as_ref());
         let binding = look.bind_property("preview", &pic, "paintable").build();
         unsafe { b.set_data("binding", binding) };
-        // Vorschau nur für sichtbare Kacheln und nur einmal je Dialog.
+        // Preview only for visible tiles and only once per dialog.
         if let Some(src) = small_for_bind.clone()
             && look.imp().preview_for.replace(generation) != generation
         {
@@ -474,7 +474,7 @@ pub fn pick(
         .build();
 
     let search = gtk::SearchEntry::builder()
-        .placeholder_text("Stil suchen, etwa Portra oder Velvia")
+        .placeholder_text("Search looks, such as Portra or Velvia")
         .hexpand(true)
         .build();
     search.connect_search_changed(glib::clone!(
@@ -491,7 +491,7 @@ pub fn pick(
         }
     ));
 
-    let none = gtk::Button::with_label("Ohne Stil");
+    let none = gtk::Button::with_label("No look");
     let header = adw::HeaderBar::new();
     header.set_title_widget(Some(&search));
     header.pack_start(&none);
@@ -500,10 +500,10 @@ pub fn pick(
     view.set_content(Some(&scroller));
 
     if !library.has_rawtherapee() {
-        // Dauerhafter Hinweis als AdwBanner, wie es die HIG vorsehen.
+        // Permanent notice as an AdwBanner, as the HIG suggest.
         let banner = adw::Banner::builder()
-            .title("Filmsimulationen von RawTherapee: frei, CC BY-SA 4.0, ca. 420 MB")
-            .button_label("Herunterladen")
+            .title("RawTherapee film simulations: free, CC BY-SA 4.0, about 420 MB")
+            .button_label("Download")
             .action_name("win.looks-download")
             .revealed(true)
             .build();
@@ -511,7 +511,7 @@ pub fn pick(
     }
 
     let dialog = adw::Dialog::builder()
-        .title("Stil wählen")
+        .title("Choose look")
         .content_width(900)
         .content_height(640)
         .child(&view)

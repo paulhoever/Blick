@@ -1,13 +1,13 @@
-//! Hell/Dunkel-Umschalter wie in GNOME Text Editor: drei runde Felder oben im
-//! Hauptmenü. Die Wahl liegt in GSettings und gilt für alle Fenster.
+//! Light/dark switcher like in GNOME Text Editor: three round swatches at the top of the
+//! main menu. The choice lives in GSettings and applies to all windows.
 
 use adw::prelude::*;
 use gtk::gio;
 
 const SCHEMES: [(&str, &str, &str); 3] = [
-    ("default", "follow", "Systemeinstellung folgen"),
-    ("light", "light", "Hell"),
-    ("dark", "dark", "Dunkel"),
+    ("default", "follow", "Follow system"),
+    ("light", "light", "Light"),
+    ("dark", "dark", "Dark"),
 ];
 
 pub fn apply(settings: &gio::Settings) {
@@ -19,7 +19,7 @@ pub fn apply(settings: &gio::Settings) {
     adw::StyleManager::default().set_color_scheme(scheme);
 }
 
-/// Das Widget für den Menüeintrag mit `custom="theme"`.
+/// The widget for the menu item with `custom="theme"`.
 pub fn selector(settings: &gio::Settings) -> gtk::Box {
     let row = gtk::Box::builder()
         .orientation(gtk::Orientation::Horizontal)

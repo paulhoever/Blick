@@ -1,6 +1,6 @@
 [package]
 name = "blick"
-description = "Schneller Bildbetrachter mit Batch-Rotation und Immich-Anbindung"
+description = "Fast image viewer with batch rotation and Immich integration"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

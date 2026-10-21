@@ -1,4 +1,4 @@
-//! Dekodieren mit EXIF-Orientierung und schnellem Herunterskalieren.
+//! Decoding with EXIF orientation and fast downscaling.
 
 use std::path::Path;
 use std::sync::OnceLock;
@@ -12,7 +12,7 @@ use crate::formats::{Kind, kind_of};
 use crate::raw;
 
 /// RGBA8-Pixelpuffer, dicht gepackt (stride = width * 4).
-/// Das Format passt 1:1 auf `gdk::MemoryFormat::R8g8b8a8`.
+/// The format maps 1:1 to `gdk::MemoryFormat::R8g8b8a8`.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Pixels {
     pub width: u32,
@@ -47,11 +47,11 @@ impl Pixels {
 
     pub fn into_dynamic(self) -> DynamicImage {
         let buf = image::RgbaImage::from_raw(self.width, self.height, self.data)
-            .expect("Pixels hat immer width*height*4 Bytes");
+            .expect("Pixels always has width*height*4 bytes");
         DynamicImage::ImageRgba8(buf)
     }
 
-    /// Verkleinert so, dass das Bild in `max_w` x `max_h` passt. Vergrößert nie.
+    /// Shrinks so the image fits in `max_w` x `max_h`. Never enlarges.
     pub fn fit_within(self, max_w: u32, max_h: u32) -> Result<Self> {
         let (w, h) = fit_size(self.width, self.height, max_w, max_h);
         if (w, h) == (self.width, self.height) {
@@ -60,7 +60,7 @@ impl Pixels {
         let src = FirImage::from_vec_u8(self.width, self.height, self.data, PixelType::U8x4)
             .map_err(|e| CoreError::Resize(e.to_string()))?;
         let mut dst = FirImage::new(w, h, PixelType::U8x4);
-        // Bilinear reicht für die Anzeige und ist deutlich schneller als Lanczos.
+        // Bilinear is enough for display and a lot faster than Lanczos.
         let opts = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Bilinear));
         Resizer::new()
             .resize(&src, &mut dst, &opts)
@@ -73,7 +73,7 @@ impl Pixels {
     }
 }
 
-/// Zielgröße mit erhaltenem Seitenverhältnis, mindestens 1x1.
+/// Target size keeping the aspect ratio, at least 1x1.
 pub fn fit_size(w: u32, h: u32, max_w: u32, max_h: u32) -> (u32, u32) {
     if w <= max_w && h <= max_h {
         return (w, h);
@@ -85,9 +85,9 @@ pub fn fit_size(w: u32, h: u32, max_w: u32, max_h: u32) -> (u32, u32) {
     )
 }
 
-/// Dekodierer für alles, was weder `image` noch `rawler` können. Die App
-/// registriert hier glycin; ohne Registrierung gelten solche Dateien als
-/// nicht unterstützt.
+/// Decoder for everything neither `image` nor `rawler` can handle. The app
+/// registers glycin here; without a registration such files count as
+/// unsupported.
 pub type Fallback = dyn Fn(&Path) -> Result<DynamicImage> + Send + Sync;
 
 static FALLBACK: OnceLock<Box<Fallback>> = OnceLock::new();
@@ -96,8 +96,8 @@ pub fn set_fallback(f: impl Fn(&Path) -> Result<DynamicImage> + Send + Sync + 's
     let _ = FALLBACK.set(Box::new(f));
 }
 
-/// Holt ein Standbild aus einem Video. Die App registriert GStreamer; ohne
-/// Registrierung haben Videos kein Thumbnail.
+/// Grabs a still frame from a video. The app registers GStreamer; without
+/// a registration videos have no thumbnail.
 pub type FrameGrabber = dyn Fn(&Path, u32) -> Result<DynamicImage> + Send + Sync;
 
 static FRAME_GRABBER: OnceLock<Box<FrameGrabber>> = OnceLock::new();
@@ -106,7 +106,7 @@ pub fn set_frame_grabber(f: impl Fn(&Path, u32) -> Result<DynamicImage> + Send +
     let _ = FRAME_GRABBER.set(Box::new(f));
 }
 
-/// Standbild aus dem Video, höchstens `max_edge` Pixel an der längeren Kante.
+/// Still frame from the video, at most `max_edge` pixels on the longer edge.
 pub fn video_frame(path: &Path, max_edge: u32) -> Result<DynamicImage> {
     let f = FRAME_GRABBER
         .get()
@@ -121,17 +121,17 @@ fn fallback(path: &Path) -> Result<DynamicImage> {
     f(path)
 }
 
-/// Größte Kantenlänge, ab der eine eingebettete RAW-Vorschau reicht.
+/// Largest edge length up to which an embedded RAW preview is enough.
 const RAW_PREVIEW_MIN: u32 = 1024;
 
-/// Dekodiert vollständig und richtet nach EXIF-Orientierung aus.
-/// RAW wird dabei voll entwickelt; das braucht Export und Bearbeiten.
+/// Decodes fully and applies the EXIF orientation.
+/// RAW is fully developed here; export and editing need that.
 pub fn load_oriented(path: &Path) -> Result<DynamicImage> {
     match kind_of(path) {
         Some(Kind::Raw) => raw::develop(path),
         Some(Kind::Other) => fallback(path),
         Some(Kind::Video) => video_frame(path, 4096),
-        // Was `image` nicht schafft (exotisches TIFF etwa), bekommt glycin.
+        // Whatever `image` can't handle (exotic TIFF, say) goes to glycin.
         _ => load_raster(path).or_else(|e| fallback(path).map_err(|_| e)),
     }
 }
@@ -144,7 +144,7 @@ fn load_raster(path: &Path) -> Result<DynamicImage> {
     let mut decoder = reader
         .into_decoder()
         .map_err(|e| CoreError::image(path, e))?;
-    // Fehlende oder kaputte EXIF-Daten sind kein Grund, das Bild nicht zu zeigen.
+    // Missing or broken EXIF data is no reason not to show the picture.
     let orientation = decoder
         .orientation()
         .unwrap_or(image::metadata::Orientation::NoTransforms);
@@ -153,8 +153,8 @@ fn load_raster(path: &Path) -> Result<DynamicImage> {
     Ok(img)
 }
 
-/// Maße des Originals nach Ausrichtung, ohne die Pixel zu dekodieren.
-/// Bei RAW die Sensorgröße (vor dem Beschnitt der Entwicklung, also knapp darüber).
+/// Dimensions of the original after orientation, without decoding the pixels.
+/// For RAW this is the sensor size (before the develop crop, so slightly larger).
 pub fn dimensions(path: &Path) -> Option<(u32, u32)> {
     let (w, h, o) = match kind_of(path)? {
         Kind::Raster => {
@@ -182,12 +182,12 @@ pub fn dimensions(path: &Path) -> Option<(u32, u32)> {
         }
         Kind::Other | Kind::Video => return None,
     };
-    // 5 bis 8 vertauschen Breite und Höhe.
+    // 5 to 8 swap width and height.
     Some(if (5..=8).contains(&o) { (h, w) } else { (w, h) })
 }
 
-/// Dekodiert Bilddaten aus dem Speicher, etwa ein Bild vom Server, und
-/// richtet sie nach EXIF aus (Originale vom Handy tragen oft Orientation 6).
+/// Decodes image data from memory, such as a picture from the server, and
+/// applies EXIF orientation (originals from phones often carry Orientation 6).
 pub fn load_bytes(bytes: &[u8]) -> Result<Pixels> {
     let e = |e| CoreError::image("<speicher>", e);
     let mut decoder = ImageReader::new(std::io::Cursor::new(bytes))
@@ -203,8 +203,8 @@ pub fn load_bytes(bytes: &[u8]) -> Result<Pixels> {
     Ok(Pixels::from_dynamic(img))
 }
 
-/// Lädt für die Anzeige: dekodieren, ausrichten, auf die Zielgröße verkleinern.
-/// Bei RAW reicht die eingebettete Vorschau, sofern sie groß genug ist.
+/// Loads for display: decode, orient, shrink to the target size.
+/// For RAW the embedded preview is enough if it's big enough.
 pub fn load_preview(path: &Path, max_w: u32, max_h: u32) -> Result<Pixels> {
     let img = match kind_of(path) {
         Some(Kind::Raw) => raw::load_preview(path, max_w.max(max_h).min(RAW_PREVIEW_MIN))?,

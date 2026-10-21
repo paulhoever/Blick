@@ -1,4 +1,4 @@
-//! Seitenleiste: Zuschnitt, Stil, die drei Regler und die Speichern-Knöpfe.
+//! Sidebar: crop, look, the three sliders and the save buttons.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -18,14 +18,14 @@ pub struct EditPanel {
     pub choose_look: gtk::Button,
     pub import_looks: adw::ButtonRow,
     pub export_lut: adw::ButtonRow,
-    /// „Zuschneiden …“, startet den Rahmen über dem Bild.
+    /// "Crop …", starts the frame over the picture.
     pub crop_button: gtk::Button,
     crop_row: adw::ActionRow,
     aspect_row: adw::ComboRow,
     portrait_row: adw::SwitchRow,
-    /// `None` = ganzes Bild.
+    /// `None` = whole image.
     crop: std::cell::Cell<Option<Crop>>,
-    /// Größe des Originals (gedreht), für die Pixelangabe.
+    /// Size of the original (rotated), for the pixel readout.
     dims: std::cell::Cell<Option<(u32, u32)>>,
     on_aspect: RefCell<Vec<Rc<dyn Fn()>>>,
     scales: [gtk::Scale; 3],
@@ -37,13 +37,13 @@ pub struct EditPanel {
     on_change: RefCell<Vec<Rc<dyn Fn()>>>,
 }
 
-const NAMES: [&str; 3] = ["Helligkeit", "Kontrast", "Sättigung"];
+const NAMES: [&str; 3] = ["Brightness", "Contrast", "Saturation"];
 
 fn format_value(v: f64) -> String {
     match v.round() as i32 {
         0 => "0".into(),
         n if n > 0 => format!("+{n}"),
-        // Echtes Minuszeichen, gleich breit wie das Plus.
+        // Real minus sign, same width as the plus.
         n => format!("\u{2212}{}", -n),
     }
 }
@@ -59,17 +59,17 @@ impl EditPanel {
             .margin_end(18)
             .build();
 
-        // Zuschnitt: Größe des Ausschnitts, Vorlage, Hoch/Quer.
+        // Crop: size of the section, preset, portrait/landscape.
         let crop_button = gtk::Button::builder()
             .icon_name("crop-symbolic")
-            .tooltip_text("Zuschneiden (C)")
+            .tooltip_text("Crop (C)")
             .valign(gtk::Align::Center)
             .css_classes(["flat"])
             .build();
-        crop_button.update_property(&[gtk::accessible::Property::Label("Zuschneiden")]);
+        crop_button.update_property(&[gtk::accessible::Property::Label("Crop")]);
         let crop_row = adw::ActionRow::builder()
-            .title("Zuschnitt")
-            .subtitle("Ganzes Bild")
+            .title("Crop")
+            .subtitle("Whole image")
             .subtitle_selectable(false)
             .css_classes(["property"])
             .activatable_widget(&crop_button)
@@ -77,11 +77,11 @@ impl EditPanel {
         crop_row.add_suffix(&crop_button);
         let names: Vec<&str> = PRESETS.iter().map(|(n, _)| *n).collect();
         let aspect_row = adw::ComboRow::builder()
-            .title("Seitenverhältnis")
+            .title("Aspect ratio")
             .model(&gtk::StringList::new(&names))
             .build();
         let portrait_row = adw::SwitchRow::builder()
-            .title("Hochformat")
+            .title("Portrait")
             .sensitive(false)
             .build();
         let crop_group = adw::PreferencesGroup::new();
@@ -90,15 +90,15 @@ impl EditPanel {
         crop_group.add(&portrait_row);
         column.append(&crop_group);
 
-        // Stil: Zeile mit Namen und „Wählen …“, darunter die Stärke.
+        // Look: row with name and "Choose …", strength below.
         let choose_look = gtk::Button::builder()
-            .label("Wählen …")
-            .tooltip_text("Stil wählen (S)")
+            .label("Choose …")
+            .tooltip_text("Choose look (S)")
             .valign(gtk::Align::Center)
             .build();
         let look_name = adw::ActionRow::builder()
-            .title("Stil")
-            .subtitle("Ohne")
+            .title("Look")
+            .subtitle("None")
             .subtitle_selectable(false)
             .css_classes(["property"])
             .build();
@@ -111,7 +111,7 @@ impl EditPanel {
         let strength = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 100.0, 1.0);
         strength.set_value(100.0);
         strength.set_draw_value(false);
-        strength.update_property(&[gtk::accessible::Property::Label("Stärke des Stils")]);
+        strength.update_property(&[gtk::accessible::Property::Label("Look strength")]);
         let strength_value = gtk::Label::new(Some("100"));
         strength_value.set_css_classes(&["numeric", "dim-label"]);
         let sw = strength_value.downgrade();
@@ -120,7 +120,7 @@ impl EditPanel {
                 l.set_label(&format!("{:.0}", s.value()));
             }
         });
-        let strength_box = slider_box("Stärke", &strength_value, &strength);
+        let strength_box = slider_box("Strength", &strength_value, &strength);
         strength_box.set_visible(false);
         let look_group = adw::PreferencesGroup::new();
         look_group.add(&look_list);
@@ -128,7 +128,7 @@ impl EditPanel {
         column.append(&look_group);
 
         let adjust_group = adw::PreferencesGroup::builder()
-            .title("Korrekturen")
+            .title("Adjustments")
             .build();
         let scales = NAMES.map(|name| {
             let scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, -100.0, 100.0, 1.0);
@@ -144,12 +144,12 @@ impl EditPanel {
         });
         column.append(&adjust_group);
 
-        let reset = gtk::Button::with_label("Zurücksetzen");
-        let save_copy = gtk::Button::with_label("Als Kopie speichern");
+        let reset = gtk::Button::with_label("Reset");
+        let save_copy = gtk::Button::with_label("Save as copy");
         save_copy.set_css_classes(&["pill", "suggested-action"]);
-        let remember = gtk::Button::with_label("Neben dem Bild merken");
-        remember.set_tooltip_text(Some("Speichert Zuschnitt, Regler und Stil in einer .xmp-Datei daneben. Das Bild selbst bleibt unverändert."));
-        let overwrite = gtk::Button::with_label("Original überschreiben");
+        let remember = gtk::Button::with_label("Remember next to the picture");
+        remember.set_tooltip_text(Some("Saves crop, sliders and look in an .xmp file next to it. The picture itself stays unchanged."));
+        let overwrite = gtk::Button::with_label("Overwrite original");
         overwrite.add_css_class("destructive-action");
 
         let buttons = gtk::Box::new(gtk::Orientation::Vertical, 12);
@@ -160,16 +160,16 @@ impl EditPanel {
         column.append(&buttons);
 
         let import_looks = adw::ButtonRow::builder()
-            .title("Stile importieren …")
+            .title("Import looks …")
             .start_icon_name("document-open-symbolic")
-            .tooltip_text(".cube, HaldCLUT-PNG oder Lightroom-Preset (.xmp), auch ganze Ordner")
+            .tooltip_text(".cube, HaldCLUT PNG or Lightroom preset (.xmp), whole folders too")
             .build();
         let export_lut = adw::ButtonRow::builder()
-            .title("Als LUT exportieren …")
+            .title("Export as LUT …")
             .start_icon_name("document-save-symbolic")
-            .tooltip_text("Regler und Stil als .cube, für Resolve, Photoshop, darktable")
+            .tooltip_text("Sliders and look as .cube, for Resolve, Photoshop, darktable")
             .build();
-        let extra = adw::PreferencesGroup::builder().title("Stile").build();
+        let extra = adw::PreferencesGroup::builder().title("Looks").build();
         extra.add(&import_looks);
         extra.add(&export_lut);
         column.append(&extra);
@@ -253,12 +253,12 @@ impl EditPanel {
         }
     }
 
-    /// Vorlage oder Hoch/Quer geändert.
+    /// Preset or portrait/landscape changed.
     pub fn connect_aspect_changed(&self, f: impl Fn() + 'static) {
         self.on_aspect.borrow_mut().push(Rc::new(f));
     }
 
-    /// Gewählte Vorlage und ob hochkant.
+    /// Chosen preset and whether upright.
     pub fn aspect(&self) -> (Aspect, bool) {
         let a = PRESETS
             .get(self.aspect_row.selected() as usize)
@@ -270,7 +270,7 @@ impl EditPanel {
         self.crop.get()
     }
 
-    /// Ganzes Bild zählt als kein Zuschnitt.
+    /// Whole image counts as no crop.
     pub fn set_crop(&self, crop: Option<Crop>) {
         let crop = crop.filter(|c| !c.is_identity());
         if crop == self.crop.get() {
@@ -282,7 +282,7 @@ impl EditPanel {
         self.notify();
     }
 
-    /// Maße des Originals, sobald bekannt.
+    /// Dimensions of the original, once known.
     pub fn set_dimensions(&self, dims: Option<(u32, u32)>) {
         self.dims.set(dims);
         self.update_crop_label();
@@ -292,30 +292,30 @@ impl EditPanel {
         self.show_crop_size(self.crop.get());
     }
 
-    /// Größenangabe für einen Rahmen, der noch nicht übernommen ist.
+    /// Size readout for a frame that hasn't been applied yet.
     pub fn show_crop_size(&self, crop: Option<Crop>) {
         let crop = crop.filter(|c| !c.is_identity());
         let text = match (crop, self.dims.get()) {
-            (None, _) => "Ganzes Bild".to_owned(),
+            (None, _) => "Whole image".to_owned(),
             (Some(c), Some((w, h))) => {
                 let (cw, ch) = c.output_size(w, h);
-                format!("{cw} × {ch} Pixel")
+                format!("{cw} × {ch} pixels")
             }
-            (Some(_), None) => "Zugeschnitten".to_owned(),
+            (Some(_), None) => "Cropped".to_owned(),
         };
         self.crop_row.set_subtitle(&text);
     }
 
     pub fn set_look(&self, look: Option<Arc<Look>>) {
         self.look_name
-            .set_subtitle(look.as_ref().map_or("Ohne", |l| l.name.as_str()));
+            .set_subtitle(look.as_ref().map_or("None", |l| l.name.as_str()));
         self.strength_box.set_visible(look.is_some());
         self.look.replace(look);
         self.update_buttons();
         self.notify();
     }
 
-    /// Werte aus einem Sidecar übernehmen.
+    /// Take over values from a sidecar.
     pub fn set_values(&self, adj: Adjustments, strength: f32) {
         self.scales[0].set_value(adj.brightness as f64 * 100.0);
         self.scales[1].set_value(adj.contrast as f64 * 100.0);
@@ -323,7 +323,7 @@ impl EditPanel {
         self.strength.set_value(strength as f64 * 100.0);
     }
 
-    /// Gewählter Stil mit Stärke 0..=1.
+    /// Chosen look with strength 0..=1.
     pub fn look(&self) -> Option<(Arc<Look>, f32)> {
         let l = self.look.borrow().clone()?;
         Some((l, (self.strength.value() / 100.0) as f32))
@@ -333,7 +333,7 @@ impl EditPanel {
         self.colors_identity() && self.crop.get().is_none()
     }
 
-    /// Nur Regler und Stil, ohne Zuschnitt (das, was eine LUT abbilden kann).
+    /// Only sliders and look, without crop (what a LUT can represent).
     pub fn colors_identity(&self) -> bool {
         self.adjustments().is_identity() && self.look.borrow().is_none()
     }
@@ -347,8 +347,8 @@ impl EditPanel {
         }
     }
 
-    /// Stellt Regler und Zuschnitt zurück. Der Stil bleibt beim Blättern
-    /// erhalten, so lassen sich mehrere Bilder im selben Look ansehen.
+    /// Resets sliders and crop. The look stays while paging,
+    /// so several pictures can be viewed in the same look.
     pub fn reset(&self) {
         for s in &self.scales {
             s.set_value(0.0);
@@ -356,11 +356,11 @@ impl EditPanel {
         self.set_crop(None);
     }
 
-    /// RAW, HEIC & Co. lassen sich nur als Kopie speichern.
+    /// RAW, HEIC and the like can only be saved as a copy.
     pub fn set_overwrite_allowed(&self, allowed: bool) {
         self.overwrite_allowed.set(allowed);
         self.overwrite.set_tooltip_text((!allowed).then_some(
-            "Dieses Format kann Blick nur lesen, nicht schreiben. Als Kopie speichern geht.",
+            "Blick can only read this format, not write it. Saving a copy works.",
         ));
         self.update_buttons();
     }
@@ -378,7 +378,7 @@ impl EditPanel {
     }
 }
 
-/// Regler wie in den Mockups der GNOME-Bildanzeige: Name und Wert über der Leiste.
+/// Sliders like in the GNOME image viewer mockups: name and value above the bar.
 fn slider_box(name: &str, value: &gtk::Label, scale: &gtk::Scale) -> gtk::Box {
     let head = gtk::Box::new(gtk::Orientation::Horizontal, 6);
     head.append(

@@ -4,24 +4,24 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Blick</name>
-  <summary>Bilder ansehen, drehen und zu Immich hochladen</summary>
+  <summary>View, rotate and upload pictures to Immich</summary>
   <developer id="io.github.paulhoever">
     <name>paulhoever</name>
   </developer>
   <description>
     <p>
-      Blick zeigt einen Ordner als Kontaktbogen: alle Bilder dicht nebeneinander, durchnummeriert in der Reihenfolge des Ordners. Ein Doppelklick öffnet das Bild groß, mit den Pfeiltasten blätterst du weiter.
+      Blick shows a folder as a contact sheet: every picture side by side, numbered in folder order. Double-click opens a picture large, and the arrow keys page through the rest.
     </p>
     <ul>
-      <li>Liest JPEG, PNG, WebP, TIFF, HEIC, AVIF, JPEG XL und Kamera-RAW von Canon, Nikon, Sony, Fujifilm, Panasonic, Olympus und anderen.</li>
-      <li>Bibliothek: Ordner wie Fotos rekursiv durchsuchen, jeder Unterordner erscheint als Album.</li>
-      <li>Mehrere Bilder auf einmal nach links oder rechts drehen. JPEG-Dateien dreht Blick verlustfrei über die EXIF-Ausrichtung, RAW-Dateien über eine XMP-Datei daneben.</li>
-      <li>Bildstile aus .cube-LUTs, HaldCLUTs (etwa die Filmsimulationen von RawTherapee) und Lightroom-Presets, mit Stärkeregler, auch für viele Bilder auf einmal.</li>
-      <li>Helligkeit, Kontrast und Sättigung mit Live-Vorschau anpassen und als Kopie speichern.</li>
-      <li>Bilder zu Immich hochladen, auf Wunsch direkt in ein Album.</li>
-      <li>Immich-Alben durchblättern, auch sehr große, Monat für Monat.</li>
-      <li>Videos abspielen, lokal und aus Immich, stumm zum Start.</li>
-      <li>Dubletten suchen nach dem Vorbild von dupeGuru: identische Dateien, ähnliche Bilder, ähnliche Dateinamen und gleiche Ordner, auch auf Netzwerkfreigaben (SMB, SFTP, WebDAV) und in Immich.</li>
+      <li>Reads JPEG, PNG, WebP, TIFF, HEIC, AVIF, JPEG XL and camera RAW from Canon, Nikon, Sony, Fujifilm, Panasonic, Olympus and others.</li>
+      <li>Library: search folders like Photos recursively, every subfolder shows up as an album.</li>
+      <li>Rotate several pictures left or right at once. Blick rotates JPEG files losslessly through the EXIF orientation, RAW files through an XMP file next to them.</li>
+      <li>Looks from .cube LUTs, HaldCLUTs (such as RawTherapee's film simulations) and Lightroom presets, with a strength slider, for many pictures at once too.</li>
+      <li>Adjust brightness, contrast and saturation with a live preview and save the result as a copy.</li>
+      <li>Upload pictures to Immich, straight into an album if you like.</li>
+      <li>Browse Immich albums, even very large ones, month by month.</li>
+      <li>Play videos, local and from Immich, muted at the start.</li>
+      <li>Find duplicates in the spirit of dupeGuru: identical files, similar pictures, similar file names and matching folders, also on network shares (SMB, SFTP, WebDAV) and in Immich.</li>
     </ul>
   </description>
   <launchable type="desktop-id">io.github.paulhoever.Blick.desktop</launchable>
@@ -33,15 +33,15 @@
   </branding>
   <screenshots>
     <screenshot type="default" environment="gnome">
-      <caption>Kontaktbogen mit Bibliothek und Immich-Alben</caption>
+      <caption>Contact sheet with library and Immich albums</caption>
       <image>https://raw.githubusercontent.com/paulhoever/Blick/v0.9.2/docs/screenshots/kontaktbogen.png</image>
     </screenshot>
     <screenshot environment="gnome:dark">
-      <caption>Einzelansicht mit Stil und Korrekturen</caption>
+      <caption>Single view with a look and adjustments</caption>
       <image>https://raw.githubusercontent.com/paulhoever/Blick/v0.9.2/docs/screenshots/bearbeiten.png</image>
     </screenshot>
     <screenshot environment="gnome:dark">
-      <caption>Zuschneiden mit Vorlage 3:2 im Hochformat</caption>
+      <caption>Cropping with the 3:2 preset in portrait</caption>
       <image>https://raw.githubusercontent.com/paulhoever/Blick/v0.9.2/docs/screenshots/zuschneiden.png</image>
     </screenshot>
   </screenshots>
@@ -54,75 +54,80 @@
     <control>pointing</control>
   </supports>
   <releases>
+    <release version="0.9.2-a" date="2026-10-21">
+      <description>
+        <p>The whole app is now in English: interface, messages, code comments and metadata. Looks saved by earlier versions in sidecars keep working.</p>
+      </description>
+    </release>
     <release version="0.9.2" date="2026-10-21">
       <description>
-        <p>Erste öffentliche Version auf GitHub. Neue App-ID io.github.paulhoever.Blick, damit Blick auch außerhalb des Heimnetzes sauber installierbar ist. Einstellungen und Daten der früheren ID werden nicht übernommen.</p>
-        <p>README neu geschrieben, Screenshots im Repository, keine Verweise auf interne Server mehr in Code und Metadaten.</p>
+        <p>First public release on GitHub. New app ID io.github.paulhoever.Blick so Blick installs cleanly outside a home network. Settings and data of the earlier ID are not carried over.</p>
+        <p>README rewritten, screenshots in the repository, no references to internal servers left in code and metadata.</p>
       </description>
     </release>
     <release version="0.9.1" date="2026-10-20">
       <description>
-        <p>Die JPEG-XL-Umwandlung wandelt WebP und HEIC jetzt immer um, auch wenn die Datei dadurch größer wird, weil viele Programme diese Formate nicht lesen. JPEG und PNG bleiben unverändert, wenn JPEG XL nichts spart.</p>
+        <p>The JPEG XL conversion now always converts WebP and HEIC, even if the file gets larger, because many programs can't read these formats. JPEG and PNG stay as they are if JPEG XL saves nothing.</p>
       </description>
     </release>
     <release version="0.9.0" date="2026-10-20">
       <description>
-        <p>Neu im Hauptmenü: „Ordner nach JPEG XL umwandeln“. JPEG werden verlustfrei umgepackt (bitgenau zurückholbar), PNG verlustfrei, WebP und HEIC nur, wenn die Umwandlung kleiner ausfällt. EXIF bleibt erhalten, die Originale gehen auf Wunsch in den Papierkorb.</p>
-        <p>USB-Sticks und SD-Karten erscheinen in der Seitenleiste. Der Dublettenvergleich hat ein Schließen-Kreuz und zeigt alle Bilder der Gruppe statt nur zwei.</p>
+        <p>New in the main menu: "Convert folder to JPEG XL". JPEG is repacked losslessly (restorable bit for bit), PNG losslessly, WebP and HEIC only if the conversion comes out smaller. EXIF is kept, and the originals go to the trash if you want.</p>
+        <p>USB sticks and SD cards show up in the sidebar. The duplicate comparison has a close button and shows all pictures of the group instead of just two.</p>
       </description>
     </release>
     <release version="0.8.1" date="2026-10-20">
       <description>
-        <p>Ein Doppelklick auf ein Bild öffnet es jetzt sofort im Viewer, ohne den Ordner als Kontaktbogen zu laden. Mehrere markierte Bilder lassen sich mit Pfeiltasten durchblättern. Erst der Weg zurück lädt den Ordner. Dazu kennt die Dateizuordnung weitere Formate (PNM, ICO, DDS, HDR).</p>
+        <p>Double-clicking a picture now opens it in the viewer right away, without loading the folder as a contact sheet. Several selected pictures can be paged through with the arrow keys. Only the way back loads the folder. The file association also knows more formats (PNM, ICO, DDS, HDR).</p>
       </description>
     </release>
     <release version="0.8.0" date="2026-10-20">
       <description>
-        <p>Dublettensuche (Menü, Strg+Umschalt+D): vier Suchmodi wie in dupeGuru, nämlich identischer Inhalt, ähnliche Bilder (auch gedreht oder zugeschnitten), ähnliche Dateinamen und gleiche Ordner. Orte können Ordner, Netzwerkfreigaben (SMB, SFTP, WebDAV) und die Immich-Bibliothek sein; Referenzordner werden nie zum Löschen vorgeschlagen.</p>
-        <p>Schnell, weil Größe, Teil-Hash und Index die meisten Vergleiche sparen und alle Prüfsummen und Bildsignaturen zwischengespeichert werden: Der zweite Lauf ist fast sofort fertig. Auf Servern liest Blick nur ein paar hundert KB je Datei, bei Immich gar nichts.</p>
-        <p>Aufräumen: Markieren (alle außer dem Besten, nach Pfadteil), Vergleich Seite an Seite, in den Papierkorb, verschieben, durch Hardlink ersetzen, endgültig löschen und als CSV exportieren.</p>
+        <p>Duplicate search (menu, Ctrl+Shift+D): four search modes as in dupeGuru, namely identical content, similar pictures (even rotated or cropped), similar file names and matching folders. Locations can be folders, network shares (SMB, SFTP, WebDAV) and the Immich library; reference folders are never suggested for deletion.</p>
+        <p>Fast, because size, partial hash and index skip most comparisons and all checksums and picture signatures are cached: the second run is done almost instantly. On servers Blick reads only a few hundred KB per file, and nothing at all from Immich.</p>
+        <p>Cleaning up: mark (all but the best, by path part), side-by-side comparison, move to trash, move, replace with a hardlink, delete permanently and export as CSV.</p>
       </description>
     </release>
     <release version="0.7.0" date="2026-10-14">
       <description>
-        <p>Zoomen mit den Tasten (+, −, 1) und den Zoomknöpfen zielt jetzt auf die Mausposition, nicht mehr auf die Bildmitte. Mausrad mit Strg, Pinch und Doppelklick taten das schon.</p>
-        <p>Solange bei Immich-Bildern die volle Auflösung noch lädt, zeigt unten links ein Hinweis mit Spinner den Stand an.</p>
+        <p>Zooming with the keys (+, −, 1) and the zoom buttons now targets the mouse position instead of the image center. Ctrl+scroll, pinch and double-click already did.</p>
+        <p>While the full resolution of an Immich picture is still loading, a notice with a spinner at the bottom left shows the progress.</p>
       </description>
     </release>
     <release version="0.6.0" date="2026-10-13">
       <description>
-        <p>Videos laufen jetzt auch unter Wayland mit echter Grafikkarte. Vorher luden sie dort gar nicht, weil ein Drehfilter die Wiedergabe auf Systemspeicher festgenagelt hat. Hochkant-Videos dreht die Anzeige selbst richtig.</p>
-        <p>Videos lassen sich nicht mehr drehen oder mit einem Stil versehen, das geht nur bei Fotos. Löschen und Hochladen bleiben.</p>
-        <p>Im Immich-Bogen gibt es per Rechtsklick oder langem Druck „Herunterladen …“ für ein oder mehrere Bilder und „Freigabelink kopieren“. Beim Scrollen zeigt ein Schild den Monat, über den Kalenderknopf springst du direkt zu Jahr und Monat.</p>
+        <p>Videos now also play under Wayland with a real GPU. Before, they didn't load there at all, because a rotation filter pinned playback to system memory. The display now rotates portrait videos correctly by itself.</p>
+        <p>Videos can no longer be rotated or given a look; that only works for photos. Deleting and uploading stay.</p>
+        <p>In the Immich sheet, right-click or long press offers "Download …" for one or more pictures and "Copy share link". While scrolling, a badge shows the month, and the calendar button jumps straight to a year and month.</p>
       </description>
     </release>
     <release version="0.5.0" date="2026-10-12">
       <description>
-        <p>Videos: Blick zeigt sie im Kontaktbogen mit Standbild und spielt sie in der Einzelansicht ab, lokal und aus Immich. Ein schlichter Player mit Abspielen/Anhalten und Lautstärke, jedes Video startet stumm. Leertaste spielt oder hält an, M schaltet den Ton, Pfeil hoch und runter regeln die Lautstärke.</p>
-        <p>Aus Immich kommt die Fassung, die der Server schon für den Browser umgewandelt hat. Blick selbst wandelt nichts um.</p>
+        <p>Videos: Blick shows them in the contact sheet with a still frame and plays them in the single view, local and from Immich. A plain player with play/pause and volume, every video starts muted. Space plays or pauses, M toggles sound, arrow up and down change the volume.</p>
+        <p>From Immich it plays the version the server already converted for the browser. Blick itself converts nothing.</p>
       </description>
     </release>
     <release version="0.4.0" date="2026-10-12">
       <description>
-        <p>Zuschneiden: frei oder mit Vorlagen für das Seitenverhältnis (Original, 1:1, 4:3, 3:2, 16:9, 5:4, 7:5, 2:1), quer oder hoch. Der Rahmen lässt sich an Ecken und Kanten ziehen, verschieben und mit der Tastatur bewegen (C startet, Enter übernimmt). Der Zuschnitt landet wie die Korrekturen in der Kopie, im Original oder gemerkt neben dem Bild und dreht beim Drehen mit.</p>
-        <p>Außerdem: Bilder aus Immich kommen nach der Vorschau in voller Auflösung, auch HEIC. Fehlt dem Server eine große Fassung, holt Blick das Original und dekodiert es selbst.</p>
+        <p>Cropping: free or with aspect ratio presets (original, 1:1, 4:3, 3:2, 16:9, 5:4, 7:5, 2:1), landscape or portrait. The frame can be dragged by its corners and edges, moved, and nudged with the keyboard (C starts, Enter applies). Like the adjustments, the crop goes into the copy, into the original, or is remembered next to the picture, and it rotates along when you rotate.</p>
+        <p>Also: pictures from Immich arrive in full resolution after the preview, HEIC too. If the server has no large version, Blick fetches the original and decodes it itself.</p>
       </description>
     </release>
     <release version="0.3.0" date="2026-10-11">
       <description>
-        <p>Neue Optik nach den GNOME-Richtlinien: Stock-libadwaita statt eigener Farben und Ecken, abgerundete Abzüge, runde Bedienknöpfe über dem Bild, Zoomknöpfe unten rechts, Bearbeiten-Leiste mit Gruppen, Tastenkürzel-Übersicht (Strg+?), neues App-Symbol. Unter 500 Pixel Breite zeigt die Auswahlleiste nur Symbole, damit Blick auch auf schmalen Bildschirmen passt.</p>
-        <p>Außerdem: Beim Bearbeiten zeigt langes Drücken auf das Bild das Original.</p>
+        <p>New look following the GNOME guidelines: stock libadwaita instead of custom colors and corners, rounded prints, round buttons over the picture, zoom buttons at the bottom right, an edit bar with groups, a shortcuts overview (Ctrl+?), a new app icon. Below 500 pixels of width the selection bar shows only icons, so Blick fits narrow screens too.</p>
+        <p>Also: while editing, a long press on the picture shows the original.</p>
       </description>
     </release>
     <release version="0.2.0" date="2026-10-10">
       <description>
-        <p>RAW, HEIC, AVIF und JPEG XL, Bibliothek mit Unterordnern als Alben, Bildstile, Zoom, Vollbild, Bildinfos, Papierkorb mit Rückgängig, Ordnerüberwachung, Einstellungen neben dem Bild merken, Originale aus Immich herunterladen.</p>
-        <p>Außerdem: RAW-Entwicklung an die Kamera-Vorschau angeglichen, HEIC, AVIF und JPEG XL verlustfrei drehen, Thumbnails mit gemerkten Korrekturen und Stilen, Leertaste als Schnellblick, Hell/Dunkel im Hauptmenü.</p>
+        <p>RAW, HEIC, AVIF and JPEG XL, a library with subfolders as albums, looks, zoom, fullscreen, picture info, trash with undo, folder watching, remembering settings next to the picture, downloading originals from Immich.</p>
+        <p>Also: RAW develop matched to the camera preview, lossless rotation of HEIC, AVIF and JPEG XL, thumbnails with remembered adjustments and looks, space bar as quick look, light/dark in the main menu.</p>
       </description>
     </release>
     <release version="0.1.0" date="2026-10-09">
       <description>
-        <p>Erste Version: Kontaktbogen, Einzelansicht, Korrekturen, Batch-Rotation, Immich-Upload und Alben.</p>
+        <p>First version: contact sheet, single view, adjustments, batch rotation, Immich upload and albums.</p>
       </description>
     </release>
   </releases>

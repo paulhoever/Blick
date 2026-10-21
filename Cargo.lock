@@ -421,7 +421,7 @@ dependencies = [
 
 [[package]]
 name = "blick"
-version = "0.9.2"
+version = "0.9.2-a"
 dependencies = [
  "anyhow",
  "async-channel",
@@ -451,7 +451,7 @@ dependencies = [
 
 [[package]]
 name = "blick-core"
-version = "0.9.2"
+version = "0.9.2-a"
 dependencies = [
  "blake3",
  "fast_image_resize",
@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "blick-dupes"
-version = "0.9.2"
+version = "0.9.2-a"
 dependencies = [
  "blake3",
  "blick-core",
@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "blick-immich"
-version = "0.9.2"
+version = "0.9.2-a"
 dependencies = [
  "bytes",
  "futures-util",

@@ -1,16 +1,16 @@
-//! Globale Farb- und Tonwertparameter nach dem Vorbild von Lightroom/Camera Raw.
+//! Global color and tone parameters modeled on Lightroom/Camera Raw.
 //!
-//! Lightroom rechnet Lichter, Tiefen, Weiß und Schwarz lokal (mit Rücksicht
-//! auf die Umgebung eines Pixels). Hier sind es globale Kurven, damit alles in
-//! eine LUT passt. Ein importiertes Preset sieht dadurch ähnlich aus, nicht gleich.
+//! Lightroom computes highlights, shadows, whites and blacks locally (taking a
+//! pixel's surroundings into account). Here they are global curves so everything
+//! fits into one LUT. An imported preset therefore looks similar, not identical.
 
-/// Farbbereiche wie in Lightroom: Rot, Orange, Gelb, Grün, Aquamarin, Blau, Lila, Magenta.
+/// Color ranges as in Lightroom: red, orange, yellow, green, aqua, blue, purple, magenta.
 pub const HSL_NAMES: [&str; 8] = [
     "Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta",
 ];
 const HSL_CENTERS: [f32; 8] = [0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 270.0, 300.0];
 
-/// Gradationskurve aus Stützpunkten (x, y) in 0..=1, monoton interpoliert.
+/// Tone curve from control points (x, y) in 0..=1, interpolated monotonically.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Curve {
     pub points: Vec<(f32, f32)>,
@@ -21,7 +21,7 @@ impl Curve {
         self.points.is_empty() || self.points.iter().all(|(x, y)| (x - y).abs() < 1e-4)
     }
 
-    /// Monotone kubische Interpolation (Fritsch-Carlson), überschwingt nicht.
+    /// Monotone cubic interpolation (Fritsch-Carlson), doesn't overshoot.
     pub fn eval(&self, x: f32) -> f32 {
         let p = &self.points;
         if p.len() < 2 {
@@ -80,7 +80,7 @@ pub struct Tint {
     pub saturation: f32,
 }
 
-/// Werte in den Einheiten von Lightroom: Belichtung in Blenden, fast alles
+/// Values in Lightroom's units: exposure in stops, almost everything
 /// andere -100..=100.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Params {
@@ -92,16 +92,16 @@ pub struct Params {
     pub blacks: f32,
     pub vibrance: f32,
     pub saturation: f32,
-    /// Weißabgleich relativ, wie bei JPEG-Presets (IncrementalTemperature/Tint).
+    /// Relative white balance, as with JPEG presets (IncrementalTemperature/Tint).
     pub temperature: f32,
     pub tint: f32,
     pub curve: Curve,
     pub curve_rgb: [Curve; 3],
-    /// Je Farbbereich: Farbton, Sättigung, Luminanz.
+    /// Per color range: hue, saturation, luminance.
     pub hsl: [[f32; 3]; 8],
     pub split_shadows: Tint,
     pub split_highlights: Tint,
-    /// -100 = mehr Tiefen-Färbung, +100 = mehr Lichter-Färbung.
+    /// -100 = more shadow tint, +100 = more highlight tint.
     pub split_balance: f32,
     pub grayscale: bool,
 }
@@ -127,7 +127,7 @@ fn luma(c: [f32; 3]) -> f32 {
     0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
 }
 
-/// Glocke um `center` mit Halbbreite `width`, 1 in der Mitte, 0 am Rand.
+/// Bell around `center` with half-width `width`, 1 in the middle, 0 at the edge.
 fn bump(x: f32, center: f32, width: f32) -> f32 {
     let t = ((x - center) / width).clamp(-1.0, 1.0);
     let v = 1.0 - t * t;
@@ -175,11 +175,11 @@ impl Params {
         *self == Self::default()
     }
 
-    /// Ein sRGB-Farbwert (0..=1) durch alle Stufen.
+    /// One sRGB color value (0..=1) through all stages.
     pub fn apply(&self, c: [f32; 3]) -> [f32; 3] {
         let mut c = c;
 
-        // Belichtung und Weißabgleich linear, wie eine Kamera sie sieht.
+        // Exposure and white balance are linear, the way a camera sees them.
         if self.exposure != 0.0 || self.temperature != 0.0 || self.tint != 0.0 {
             let gain = 2f32.powf(self.exposure);
             let t = self.temperature / 100.0 * 0.15;
@@ -188,7 +188,7 @@ impl Params {
             c = std::array::from_fn(|i| linear_to_srgb(srgb_to_linear(c[i]) * gain * wb[i]));
         }
 
-        // Tonwerte auf die Luminanz, Verhältnis der Kanäle bleibt.
+        // Tones act on luminance, the channel ratio stays.
         let l = luma(c);
         let mut nl = l;
         nl += self.contrast / 100.0 * 0.12 * (std::f32::consts::TAU * (l - 0.5)).sin();
@@ -213,7 +213,7 @@ impl Params {
             }
         }
 
-        // HSL je Farbbereich, weich überblendet.
+        // HSL per color range, blended softly.
         if self.hsl.iter().any(|v| v.iter().any(|x| *x != 0.0)) {
             let mut hsv = rgb_to_hsv(c);
             let (mut dh, mut ds, mut dl) = (0.0, 0.0, 0.0);
@@ -230,7 +230,7 @@ impl Params {
             c = hsv_to_rgb(hsv);
         }
 
-        // Sättigung und Dynamik (Dynamik schont bereits satte Farben).
+        // Saturation and vibrance (vibrance spares colors that are already saturated).
         if self.grayscale {
             c = [luma(c); 3];
         } else if self.saturation != 0.0 || self.vibrance != 0.0 {
@@ -241,7 +241,7 @@ impl Params {
             c = c.map(|v| l + (v - l) * k.max(0.0));
         }
 
-        // Split-Toning: Tiefen und Lichter getrennt einfärben.
+        // Split toning: tint shadows and highlights separately.
         for (tint, side) in [(self.split_shadows, -1.0f32), (self.split_highlights, 1.0)] {
             if tint.saturation <= 0.0 {
                 continue;
@@ -255,7 +255,7 @@ impl Params {
             };
             let t = tint_rgb(tint);
             let amount = tint.saturation / 100.0 * 0.35 * w;
-            // Einfärben bei gleicher Helligkeit.
+            // Tint at constant brightness.
             let tl = luma(t);
             c = std::array::from_fn(|i| c[i] + (t[i] - tl) * amount);
         }
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn hsl_shifts_only_its_range() {
         let mut p = Params::default();
-        p.hsl[5][1] = -100.0; // Blau entsättigen
+        p.hsl[5][1] = -100.0; // desaturate blue
         let blue = p.apply([0.1, 0.2, 0.9]);
         let red = p.apply([0.9, 0.1, 0.1]);
         assert!(rgb_to_hsv(blue)[1] < 0.2);

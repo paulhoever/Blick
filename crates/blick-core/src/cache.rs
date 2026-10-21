@@ -1,4 +1,4 @@
-//! Zwei Caches: dekodierte Vorschauen im RAM, Thumbnails auf der Platte.
+//! Two caches: decoded previews in RAM, thumbnails on disk.
 
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
@@ -11,8 +11,8 @@ use lru::LruCache;
 use crate::decode::{Pixels, load_preview};
 use crate::error::{CoreError, Result};
 
-/// LRU mit Byte-Budget statt Eintragszahl: ein 24-MP-Foto und ein Icon
-/// sollen nicht gleich viel Platz zählen.
+/// LRU with a byte budget instead of an entry count: a 24 MP photo and an icon
+/// shouldn't count for the same amount of space.
 pub struct MemCache<K: Hash + Eq> {
     inner: Mutex<Inner<K>>,
     budget: usize,
@@ -74,9 +74,9 @@ impl<K: Hash + Eq> MemCache<K> {
     }
 }
 
-/// Thumbnails als PNG unter `$XDG_CACHE_HOME/blick/thumbs/<größe>/`.
-/// Der Name hängt an Pfad, Änderungszeit und Dateigröße, eine geänderte
-/// Datei bekommt also automatisch ein neues Thumbnail.
+/// Thumbnails as PNG under `$XDG_CACHE_HOME/blick/thumbs/<size>/`.
+/// The name depends on path, modification time and file size, so a changed
+/// file automatically gets a new thumbnail.
 pub struct ThumbStore {
     root: PathBuf,
 }
@@ -97,8 +97,8 @@ impl ThumbStore {
         h.update(path.as_os_str().as_encoded_bytes());
         h.update(&mtime.as_nanos().to_le_bytes());
         h.update(&meta.len().to_le_bytes());
-        // Drehung (RAW) und gemerkte Korrekturen liegen in Sidecars; ändern die
-        // sich, braucht es ein neues Thumbnail, obwohl das Bild gleich bleibt.
+        // Rotation (RAW) and remembered adjustments live in sidecars. If those
+        // change, the thumbnail needs a redo even though the picture stays the same.
         for side in [
             crate::sidecar::path_for(path),
             crate::sidecar::edit_path(path),
@@ -125,15 +125,15 @@ impl ThumbStore {
         }
         let mut px = load_preview(path, size, size)?;
         crate::look::apply_sidecar(path, &mut px);
-        // Ein voller Cache-Ordner soll das Anzeigen nicht verhindern.
+        // A full cache folder shouldn't stop pictures from showing.
         if let Err(e) = self.store(&file, &px) {
-            tracing::debug!("Thumbnail nicht gespeichert: {e}");
+            tracing::debug!("thumbnail not saved: {e}");
         }
         Ok(px)
     }
 
     fn store(&self, file: &Path, px: &Pixels) -> Result<()> {
-        let dir = file.parent().expect("key hat immer einen Ordner");
+        let dir = file.parent().expect("key always has a folder");
         std::fs::create_dir_all(dir).map_err(|e| CoreError::io(dir, e))?;
         let img = px.clone().into_dynamic();
         let mut buf = std::io::Cursor::new(Vec::new());
@@ -161,7 +161,7 @@ mod tests {
         c.insert(1, px(10)); // 40 B
         c.insert(2, px(10)); // 80 B
         c.get(&1);
-        c.insert(3, px(10)); // 120 B, 2 ist am längsten unbenutzt
+        c.insert(3, px(10)); // 120 B, 2 has gone unused the longest
         assert!(c.get(&1).is_some());
         assert!(c.get(&2).is_none());
         assert!(c.get(&3).is_some());
@@ -199,7 +199,7 @@ mod tests {
         assert_eq!(cached, 1);
         assert_eq!(store.get_or_create(&src, 100).unwrap(), a);
 
-        // Gemerkte Korrektur: neues Thumbnail, entsättigt.
+        // Remembered adjustment: new thumbnail, desaturated.
         image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
             40,
             20,
