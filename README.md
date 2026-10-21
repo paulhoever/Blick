@@ -4,7 +4,6 @@ English · [Deutsch](README.de.md)
 
 Blick is an image viewer for GNOME, written in Rust with GTK 4 and libadwaita. A folder shows up as a contact sheet: every picture side by side, numbered in folder order. You can rotate a selection in one go, upload it to [Immich](https://immich.app), or tweak a single picture's brightness, contrast and saturation.
 
-The interface is English only for now (see [Limits](#limits)). The screenshots below were taken before the translation and still show German labels.
 
 ![Contact sheet with library](docs/screenshots/kontaktbogen.png)
 
