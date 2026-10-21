@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/io/github/paulhoever/Blick">
+    <file>style.css</file>
+    <file alias="icons/scalable/actions/crop-symbolic.svg">icons/hicolor/symbolic/actions/crop-symbolic.svg</file>
+    <file alias="metainfo.xml">io.github.paulhoever.Blick.metainfo.xml</file>
+  </gresource>
+</gresources>

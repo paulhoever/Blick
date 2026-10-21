@@ -1,0 +1,9 @@
+/target
+/build-dir
+/repo
+/.flatpak-builder
+/.venv-tools
+*.flatpak
+*.flatpak.sha256
+/target-sdk
+/build-release

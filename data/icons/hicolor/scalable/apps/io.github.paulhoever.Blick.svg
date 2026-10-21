@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Kontaktbogen nach den GNOME-Icon-Richtlinien: Blatt mit Kante (Tiefe),
+       vier Abzüge in GNOME-Palettenfarben, einer blau ausgewählt. -->
+  <defs>
+    <linearGradient id="sheet" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f6f5f4"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#99c1f1"/>
+      <stop offset="1" stop-color="#62a0ea"/>
+    </linearGradient>
+    <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffbe6f"/>
+      <stop offset="1" stop-color="#e66100"/>
+    </linearGradient>
+    <clipPath id="c1"><rect x="20" y="22" width="40" height="36" rx="5"/></clipPath>
+    <clipPath id="c2"><rect x="68" y="22" width="40" height="36" rx="5"/></clipPath>
+    <clipPath id="c3"><rect x="20" y="66" width="40" height="36" rx="5"/></clipPath>
+    <clipPath id="c4"><rect x="68" y="66" width="40" height="36" rx="5"/></clipPath>
+  </defs>
+  <!-- Kante und Blatt -->
+  <rect x="8" y="16" width="112" height="100" rx="12" fill="#9a9996"/>
+  <rect x="8" y="12" width="112" height="98" rx="12" fill="url(#sheet)"/>
+  <!-- Abzug 1: Berge am Mittag -->
+  <g clip-path="url(#c1)">
+    <rect x="20" y="22" width="40" height="36" fill="url(#sky)"/>
+    <path d="M20 50 L32 36 L40 44 L48 34 L60 48 V58 H20 Z" fill="#2ec27e"/>
+    <path d="M20 54 Q40 46 60 52 V58 H20 Z" fill="#26a269"/>
+    <circle cx="51" cy="30" r="4" fill="#f8e45c"/>
+  </g>
+  <!-- Abzug 2: Abendlicht, ausgewählt -->
+  <g clip-path="url(#c2)">
+    <rect x="68" y="22" width="40" height="36" fill="url(#dusk)"/>
+    <circle cx="88" cy="46" r="7" fill="#f9f06b"/>
+    <path d="M68 48 Q88 42 108 48 V58 H68 Z" fill="#a51d2d"/>
+  </g>
+  <!-- Abzug 3: Meer -->
+  <g clip-path="url(#c3)">
+    <rect x="20" y="66" width="40" height="36" fill="#99c1f1"/>
+    <rect x="20" y="86" width="40" height="16" fill="#1c71d8"/>
+    <path d="M20 90 Q30 87 40 90 T60 90 V102 H20 Z" fill="#1a5fb4"/>
+  </g>
+  <!-- Abzug 4: Wald -->
+  <g clip-path="url(#c4)">
+    <rect x="68" y="66" width="40" height="36" fill="#cdab8f"/>
+    <path d="M74 98 L80 74 L86 98 Z M86 98 L93 70 L100 98 Z M96 98 L101 80 L106 98 Z" fill="#26a269"/>
+    <rect x="68" y="96" width="40" height="6" fill="#63452c"/>
+  </g>
+  <!-- Auswahl -->
+  <rect x="64.5" y="18.5" width="47" height="43" rx="8" fill="none" stroke="#3584e4" stroke-width="4"/>
+</svg>

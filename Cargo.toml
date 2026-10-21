@@ -1,0 +1,35 @@
+[workspace]
+resolver = "3"
+members = ["crates/blick-core", "crates/blick-immich", "crates/blick-dupes", "crates/blick"]
+default-members = ["crates/blick"]
+
+[workspace.package]
+version = "0.9.2"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.85"
+repository = "https://github.com/paulhoever/Blick"
+
+[workspace.dependencies]
+blick-core = { path = "crates/blick-core" }
+blick-immich = { path = "crates/blick-immich" }
+blick-dupes = { path = "crates/blick-dupes" }
+
+anyhow = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "fs", "macros", "time"] }
+tempfile = "3.27"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# Bilddekodierung ist auch im Debug-Build sonst unerträglich langsam.
+[profile.dev.package."*"]
+opt-level = 2

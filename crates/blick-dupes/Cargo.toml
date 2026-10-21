@@ -1,0 +1,29 @@
+[package]
+name = "blick-dupes"
+description = "Duplikatsuche für Blick: Inhalt, Bildähnlichkeit, Namen, lokal und entfernt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+gio = ["dep:gio"]
+
+[dependencies]
+blick-immich.workspace = true
+tokio.workspace = true
+gio = { version = "0.22", optional = true }
+sha1 = "0.11"
+blick-core.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rayon = "1.12"
+blake3 = "1.8"
+rusqlite = { version = "0.37", features = ["bundled"] }
+tempfile.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }

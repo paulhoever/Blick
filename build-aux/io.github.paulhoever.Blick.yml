@@ -1,0 +1,54 @@
+id: io.github.paulhoever.Blick
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: blick
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Immich
+  - --share=network
+  # Netzwerkfreigaben (smb://, sftp://, davs://) über den gvfs-Dienst des Hosts
+  - --talk-name=org.gtk.vfs.*
+  - --filesystem=xdg-run/gvfs
+  - --filesystem=xdg-run/gvfsd
+  # Der Bilder-Ordner direkt, alles andere über den Dateiauswahl-Portal
+  - --filesystem=xdg-pictures
+  # USB-Sticks und SD-Karten
+  - --filesystem=/run/media
+  - --filesystem=/media
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/blick/cargo
+    CARGO_NET_OFFLINE: "true"
+cleanup:
+  - /include
+  - /lib/pkgconfig
+modules:
+  - name: blick
+    buildsystem: simple
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo --offline build --release --locked -p blick
+      - install -Dm755 target/release/blick -t /app/bin/
+      - install -Dm644 data/io.github.paulhoever.Blick.desktop -t /app/share/applications/
+      - install -Dm644 data/io.github.paulhoever.Blick.metainfo.xml -t /app/share/metainfo/
+      - install -Dm644 data/io.github.paulhoever.Blick.gschema.xml -t /app/share/glib-2.0/schemas/
+      - glib-compile-schemas /app/share/glib-2.0/schemas/
+      - install -Dm644 data/icons/hicolor/scalable/apps/io.github.paulhoever.Blick.svg -t /app/share/icons/hicolor/scalable/apps/
+      - install -Dm644 data/icons/hicolor/symbolic/apps/io.github.paulhoever.Blick-symbolic.svg -t /app/share/icons/hicolor/symbolic/apps/
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - target
+          - build-dir
+          - repo
+          - .flatpak-builder
+          - .venv-tools
+      - cargo-sources.json

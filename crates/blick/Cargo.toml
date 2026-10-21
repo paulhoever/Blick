@@ -1,0 +1,35 @@
+[package]
+name = "blick"
+description = "Schneller Bildbetrachter mit Batch-Rotation und Immich-Anbindung"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+blick-core.workspace = true
+blick-immich.workspace = true
+blick-dupes = { workspace = true, features = ["gio"] }
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tokio.workspace = true
+gtk = { package = "gtk4", version = "0.11", features = ["v4_14"] }
+adw = { package = "libadwaita", version = "0.9", features = ["v1_8"] }
+async-channel = "2.5"
+futures-util = "0.3"
+oo7 = { version = "0.6", default-features = false, features = ["tokio", "native_crypto"] }
+thumbhash = "0.1"
+base64 = "0.23"
+image = { version = "0.25", default-features = false }
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "stream"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+glycin = { version = "4.0.2", default-features = false, features = ["tokio"] }
+gstreamer = "0.25"
+gstreamer-app = "0.25"
+kamadak-exif = "0.6"
+jpegxl-rs = { version = "0.16", default-features = false }
+
+[build-dependencies]
+glib-build-tools = "0.22"
